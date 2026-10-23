@@ -15,10 +15,6 @@ const WorkTimeSummary = ({ sheets }: WorkTimeSummaryProps) => {
     return sum + sheet.daily_entries.reduce((daySum, entry) => daySum + entry.overtime, 0);
   }, 0);
 
-  const totalAbsence = sheets.reduce((sum, sheet) => {
-    return sum + sheet.daily_entries.filter(entry => entry.status === 'absence').length;
-  }, 0);
-
   return (
     <div className="row g-3 mb-4">
       <div className="col-md-3">

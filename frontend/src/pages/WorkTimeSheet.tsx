@@ -12,7 +12,6 @@ const WorkTimeSheetPage = () => {
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [editingCell, setEditingCell] = useState<{ sheetId: string; date: number } | null>(null);
   const [showAbsenceModal, setShowAbsenceModal] = useState(false);
   const [showOvertimeModal, setShowOvertimeModal] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<{ sheet: WorkTimeSheet; entry: DailyEntry } | null>(null);
@@ -35,7 +34,6 @@ const WorkTimeSheetPage = () => {
 
   const handleCellClick = (sheet: WorkTimeSheet, entry: DailyEntry) => {
     setSelectedEntry({ sheet, entry });
-    setEditingCell({ sheetId: sheet._id, date: entry.date });
   };
 
   const handleAddOvertime = async (overtimeMinutes: number) => {

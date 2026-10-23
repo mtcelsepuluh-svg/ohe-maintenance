@@ -1,11 +1,12 @@
 # Dependencies
-"node_modules/"
-"package-lock.json"
+node_modules/
+package-lock.json
 
 # Test files
-"test-*.js"
-"test-*.xlsx"
-"test-*.json"
+test-*.js
+test-*.xlsx
+test-*.json
+test-*.html
 
 # Environment files
 .env
@@ -28,3 +29,11 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Build output
+dist/
+build/
+
+# Temporary files
+*.tmp
+*.temp

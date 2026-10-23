@@ -2,12 +2,8 @@ import { useState, useEffect } from 'react';
 import { oheService } from '../services/oheService';
 import { activityService } from '../services/activityService';
 import { authService } from '../services/authService';
-import { googleSyncService } from '../services/googleSyncService';
 import { OHEInput, OHEInputCreate, Activity } from '../types';
 import { format } from 'date-fns';
-import SyncStatusIndicator from '../components/SyncStatusIndicator';
-import GoogleSheetsSyncButton from '../components/GoogleSheetsSyncButton';
-import WarningModal from '../components/WarningModal';
 
 const InputOHE = () => {
   const user = authService.getCurrentUser();
@@ -15,8 +11,6 @@ const InputOHE = () => {
   const [oheInputs, setOheInputs] = useState<OHEInput[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [showWarningModal, setShowWarningModal] = useState(false);
-  const [pendingSubmit, setPendingSubmit] = useState(false);
   const [formData, setFormData] = useState<OHEInputCreate>({
     date: format(new Date(), 'yyyy-MM-dd'),
     shift: '1',
