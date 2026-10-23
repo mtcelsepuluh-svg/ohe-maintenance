@@ -97,57 +97,71 @@ const importActivities = async (req, res) => {
         
         // Parse times (handle Excel time format or string)
         let jamMulaiStr, jamSelesaiStr;
-        
+
         if (typeof jamMulai === 'number') {
           // Excel time is fraction of day
-          const hours = Math.floor(jamMulai * 24);
-          const minutes = Math.round((jamMulai * 24 - hours) * 60);
-          jamMulaiStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+          const totalSeconds = Math.round(jamMulai * 86400);
+          const hours = Math.floor(totalSeconds / 3600);
+          const minutes = Math.floor((totalSeconds % 3600) / 60);
+          const seconds = totalSeconds % 60;
+          jamMulaiStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         } else {
           jamMulaiStr = String(jamMulai).trim();
         }
-        
+
         if (typeof jamSelesai === 'number') {
-          const hours = Math.floor(jamSelesai * 24);
-          const minutes = Math.round((jamSelesai * 24 - hours) * 60);
-          jamSelesaiStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+          const totalSeconds = Math.round(jamSelesai * 86400);
+          const hours = Math.floor(totalSeconds / 3600);
+          const minutes = Math.floor((totalSeconds % 3600) / 60);
+          const seconds = totalSeconds % 60;
+          jamSelesaiStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         } else {
           jamSelesaiStr = String(jamSelesai).trim();
         }
-        
-        // Validate time format
-        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+
+        // Validate time format (HH:MM or HH:MM:SS)
+        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/;
         if (!timeRegex.test(jamMulaiStr)) {
-          errors.push(`Row ${rowNum}: Invalid Jam Mulai format (should be HH:MM)`);
+          errors.push(`Row ${rowNum}: Invalid Jam Mulai format (should be HH:MM or HH:MM:SS)`);
           continue;
         }
-        
+
         if (!timeRegex.test(jamSelesaiStr)) {
-          errors.push(`Row ${rowNum}: Invalid Jam Selesai format (should be HH:MM)`);
+          errors.push(`Row ${rowNum}: Invalid Jam Selesai format (should be HH:MM or HH:MM:SS)`);
           continue;
         }
-        
+
         // Calculate duration
-        const startTime = new Date(`2000-01-01 ${jamMulaiStr}`);
-        const endTime = new Date(`2000-01-01 ${jamSelesaiStr}`);
-        
+        const startTime = new Date(`2000-01-01T${jamMulaiStr}`);
+        const endTime = new Date(`2000-01-01T${jamSelesaiStr}`);
+
         if (endTime <= startTime) {
           errors.push(`Row ${rowNum}: Jam Selesai must be after Jam Mulai`);
           continue;
         }
-        
+
         const durasiMenit = Math.round((endTime - startTime) / 60000);
-        
+
         // Parse optional fields
         const durasiDariExcel = row['Durasi ( dlm menit )'] || row['Durasi (dalam menit)'] || durasiMenit;
-        const kategoriPekerjaan = row['Kategori Pekerjaan'] || 'Preventive';
+        let kategoriPekerjaan = row['Kategori Pekerjaan'] || 'Preventive';
         const pekerjaanIndirect = row['Pekerjaan Indirect'] || '';
         const durasiIndirect = row['Durasi waktu Indirect'] || 0;
         const lossTime = row['Loss Time'] || '';
         const durasiLossTime = row['Durasi waktu Loss Time'] || 0;
+
+        // Normalize category
+        kategoriPekerjaan = kategoriPekerjaan.trim();
         
+        // Auto-categorize: if kategori contains "Indirect", move to Indirect Time
+        let isIndirect = false;
+        if (kategoriPekerjaan.toLowerCase().includes('indirect')) {
+          isIndirect = true;
+          kategoriPekerjaan = 'Indirect';
+        }
+
         // Validate category
-        const validCategories = ['Corective', 'Preventive', 'Proyek'];
+        const validCategories = ['Corective', 'Preventive', 'Proyek', 'Indirect'];
         if (!validCategories.includes(kategoriPekerjaan)) {
           errors.push(`Row ${rowNum}: Invalid Kategori Pekerjaan. Must be one of: ${validCategories.join(', ')}`);
           continue;
@@ -157,13 +171,14 @@ const importActivities = async (req, res) => {
           nama: String(nama).trim(),
           jenis_pekerjaan: String(jenisPekerjaan).trim(),
           date: dateValue,
-          waktu: dateValue, // Set waktu to the same as date
+          waktu: dateValue,
           jam_mulai: jamMulaiStr,
           jam_selesai: jamSelesaiStr,
           actual_time_min: Number(durasiDariExcel),
           kategori_pekerjaan: kategoriPekerjaan,
-          pekerjaan_indirect: String(pekerjaanIndirect).trim(),
-          durasi_indirect_min: Number(durasiIndirect) || 0,
+          // If category is Indirect, set pekerjaan_indirect and durasi_indirect_min
+          pekerjaan_indirect: isIndirect ? String(jenisPekerjaan).trim() : String(pekerjaanIndirect).trim(),
+          durasi_indirect_min: isIndirect ? Number(durasiDariExcel) : (Number(durasiIndirect) || 0),
           loss_time: String(lossTime).trim(),
           durasi_loss_time_min: Number(durasiLossTime) || 0
         });

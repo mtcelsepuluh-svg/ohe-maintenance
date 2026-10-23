@@ -179,10 +179,13 @@ const Activities = () => {
       <div className="alert alert-info" role="alert">
         <strong>📋 Excel Format:</strong> Your Excel file should have these columns:{' '}
         <strong>Nama</strong>, <strong>Jenis Pekerjaan</strong>, <strong>Tanggal</strong>,{' '}
-        <strong>Jam Mulai</strong>, <strong>Jam Selesai</strong>, <strong>Durasi ( dlm menit )</strong>,{' '}
-        <strong>Kategori Pekerjaan</strong> (Corective/Preventive/Proyek),{' '}
+        <strong>Jam Mulai</strong> (HH:MM or HH:MM:SS), <strong>Jam Selesai</strong> (HH:MM or HH:MM:SS),{' '}
+        <strong>Durasi ( dlm menit )</strong>,{' '}
+        <strong>Kategori Pekerjaan</strong> (Corective/Preventive/Proyek/Indirect),{' '}
         <strong>Pekerjaan Indirect</strong>, <strong>Durasi waktu Indirect</strong>,{' '}
         <strong>Loss Time</strong>, <strong>Durasi waktu Loss Time</strong>
+        <br />
+        <strong>💡 Auto-Categorize:</strong> If Kategori Pekerjaan contains "Indirect", it will be automatically moved to Indirect Time.
       </div>
 
       {/* Tabs */}

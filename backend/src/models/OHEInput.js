@@ -23,7 +23,7 @@ const oheInputSchema = new mongoose.Schema({
   },
   kategori_pekerjaan: {
     type: String,
-    enum: ['Corective', 'Preventive', 'Proyek'],
+    enum: ['Corective', 'Preventive', 'Proyek', 'Indirect'],
     required: true
   },
   waktu: {
