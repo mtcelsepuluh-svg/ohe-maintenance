@@ -157,6 +157,7 @@ const importActivities = async (req, res) => {
           nama: String(nama).trim(),
           jenis_pekerjaan: String(jenisPekerjaan).trim(),
           date: dateValue,
+          waktu: dateValue, // Set waktu to the same as date
           jam_mulai: jamMulaiStr,
           jam_selesai: jamSelesaiStr,
           actual_time_min: Number(durasiDariExcel),
@@ -196,7 +197,7 @@ const importActivities = async (req, res) => {
     if (createdRecords.length > 0) {
       await Log.create({
         user: req.user.user_id,
-        action: 'import',
+        action: 'create',
         module: 'ohe_input',
         description: `Imported ${createdRecords.length} activities from Excel`
       });
