@@ -20,6 +20,7 @@ const logRoutes = require('./routes/logRoutes');
 const workTimeRoutes = require('./routes/workTimeRoutes');
 const googleSyncRoutes = require('./routes/googleSyncRoutes');
 const importRoutes = require('./routes/importRoutes');
+const mekanikRoutes = require('./routes/mekanikRoutes');
 
 // Utils
 const syncScheduler = require('./utils/syncScheduler');
@@ -80,6 +81,7 @@ app.use('/api/logs', logRoutes);
 app.use('/api/worktime', workTimeRoutes);
 app.use('/api/google-sync', googleSyncRoutes);
 app.use('/api/import', importRoutes);
+app.use('/api/mekaniks', mekanikRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
