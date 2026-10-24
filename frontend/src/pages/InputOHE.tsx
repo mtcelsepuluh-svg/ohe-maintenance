@@ -11,9 +11,7 @@ const InputOHE = () => {
   const [oheInputs, setOheInputs] = useState<OHEInput[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState<string>(
-    format(new Date(), 'yyyy-MM')
-  );
+  const [selectedMonth, setSelectedMonth] = useState<string>('2026-01');
   const [formData, setFormData] = useState<OHEInputCreate>({
     date: format(new Date(), 'yyyy-MM-dd'),
     shift: '1',
