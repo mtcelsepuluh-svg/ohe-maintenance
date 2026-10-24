@@ -17,6 +17,18 @@ const Reports = () => {
     loadActivities();
   }, [selectedMonth]);
 
+  // Reset dropdown when modal opens
+  useEffect(() => {
+    if (showEditModal && editItem) {
+      setTimeout(() => {
+        const selectElement = document.getElementById('categorySelect') as HTMLSelectElement;
+        if (selectElement) {
+          selectElement.value = editItem.category || editItem.kategori_pekerjaan || '';
+        }
+      }, 100);
+    }
+  }, [showEditModal, editItem]);
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -112,6 +124,15 @@ const Reports = () => {
           await loadData();
           setShowEditModal(false);
           setEditItem(null);
+          
+          // Reset dropdown
+          setTimeout(() => {
+            const selectElement = document.getElementById('categorySelect') as HTMLSelectElement;
+            if (selectElement) {
+              selectElement.value = '';
+            }
+          }, 300);
+          
           alert('Category updated successfully! Activity will move to the new section.');
         } else {
           alert('Failed to update category: ' + (result.message || 'Unknown error'));
