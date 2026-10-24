@@ -8,9 +8,13 @@ const Reports = () => {
   const [oheInputs, setOheInputs] = useState<OHEInput[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState<string>('2026-01');
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editItem, setEditItem] = useState<OHEInput | null>(null);
+  const [activities, setActivities] = useState<any[]>([]);
 
   useEffect(() => {
     loadData();
+    loadActivities();
   }, [selectedMonth]);
 
   const loadData = async () => {
@@ -22,6 +26,80 @@ const Reports = () => {
       console.error('Failed to load data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadActivities = async () => {
+    try {
+      // Load activities from ValueTimeList, DirectList, IndirectList, LossTimeList
+      const [valueTimes, directs, indirects, lossTimes] = await Promise.all([
+        fetch('/api/valuetimes', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        }).then(res => res.json()),
+        fetch('/api/directs', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        }).then(res => res.json()),
+        fetch('/api/indirects', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        }).then(res => res.json()),
+        fetch('/api/losstimes', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        }).then(res => res.json())
+      ]);
+
+      const allActivities = [
+        ...(valueTimes.data || []).map((a: any) => ({ ...a, category: 'VALUE TIME' })),
+        ...(directs.data || []).map((a: any) => ({ ...a, category: 'DIRECT' })),
+        ...(indirects.data || []).map((a: any) => ({ ...a, category: 'INDIRECT' })),
+        ...(lossTimes.data || []).map((a: any) => ({ ...a, category: 'LOSS' }))
+      ];
+
+      setActivities(allActivities);
+    } catch (error) {
+      console.error('Failed to load activities:', error);
+    }
+  };
+
+  const handleEditCategory = (item: OHEInput) => {
+    setEditItem(item);
+    setShowEditModal(true);
+  };
+
+  const handleSaveCategory = async () => {
+    if (!editItem) return;
+
+    try {
+      // Get selected activity from dropdown
+      const selectElement = document.getElementById('activitySelect') as HTMLSelectElement;
+      const selectedActivityName = selectElement.value;
+      const selectedActivity = activities.find(a => a.activity_name === selectedActivityName);
+      
+      if (selectedActivity) {
+        // Update the OHE input with new activity name and category
+        await fetch(`/api/oheinputs/${editItem._id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({
+            activity_name: selectedActivity.activity_name,
+            category: selectedActivity.category,
+            kategori_pekerjaan: selectedActivity.category
+          })
+        });
+
+        // Reload data
+        await loadData();
+        setShowEditModal(false);
+        setEditItem(null);
+        alert('Category updated successfully!');
+      } else {
+        alert('Please select an activity from the list');
+      }
+    } catch (error) {
+      console.error('Failed to update category:', error);
+      alert('Failed to update category');
     }
   };
 
@@ -111,7 +189,7 @@ const Reports = () => {
           <div className="card bg-primary text-white">
             <div className="card-body">
               <h6>Value Time</h6>
-              <h3>{totalValueTime.toLocaleString()} min</h3>
+              <h3>{totalValueTime.toFixed(2)} min</h3>
               <small>{valueTimeData.length} records</small>
             </div>
           </div>
@@ -120,7 +198,7 @@ const Reports = () => {
           <div className="card bg-warning text-dark">
             <div className="card-body">
               <h6>Indirect Time</h6>
-              <h3>{totalIndirect.toLocaleString()} min</h3>
+              <h3>{totalIndirect.toFixed(2)} min</h3>
               <small>{indirectData.length} records</small>
             </div>
           </div>
@@ -129,7 +207,7 @@ const Reports = () => {
           <div className="card bg-danger text-white">
             <div className="card-body">
               <h6>Loss Time</h6>
-              <h3>{totalLoss.toLocaleString()} min</h3>
+              <h3>{totalLoss.toFixed(2)} min</h3>
               <small>{lossData.length} records</small>
             </div>
           </div>
@@ -188,7 +266,16 @@ const Reports = () => {
                   return (
                     <tr key={`value-${idx}`}>
                       <td>{idx + 1}</td>
-                      <td>{item.name}</td>
+                      <td>
+                        {item.name}
+                        <button 
+                          className="btn btn-sm btn-link ms-2"
+                          onClick={() => handleEditCategory(item as any)}
+                          title="Edit Category"
+                        >
+                          ✏️
+                        </button>
+                      </td>
                       <td><span className="badge bg-success">Value</span></td>
                       <td>-</td>
                       {Array.from({length: 31}, (_, i) => {
@@ -197,11 +284,11 @@ const Reports = () => {
                         return (
                           <React.Fragment key={i}>
                             <td>{dayData ? dayData.count : 0}</td>
-                            <td>{dayData ? dayData.duration : 0}</td>
+                            <td>{dayData ? dayData.duration.toFixed(2) : '0.00'}</td>
                           </React.Fragment>
                         );
                       })}
-                      <td style={{fontWeight: 'bold'}}>{item.total}</td>
+                      <td style={{fontWeight: 'bold'}}>{item.total.toFixed(2)}</td>
                     </tr>
                   );
                 })}
@@ -209,7 +296,7 @@ const Reports = () => {
                   <td colSpan={3}>Total Value Time</td>
                   <td>min</td>
                   <td colSpan={62}></td>
-                  <td>{totalValueTime.toLocaleString()} min</td>
+                  <td>{totalValueTime.toFixed(2)} min</td>
                 </tr>
 
                 {/* Indirect Time Section */}
@@ -221,7 +308,16 @@ const Reports = () => {
                   return (
                     <tr key={`indirect-${idx}`}>
                       <td>{idx + 1}</td>
-                      <td>{item.name}</td>
+                      <td>
+                        {item.name}
+                        <button 
+                          className="btn btn-sm btn-link ms-2"
+                          onClick={() => handleEditCategory(item as any)}
+                          title="Edit Category"
+                        >
+                          ✏️
+                        </button>
+                      </td>
                       <td><span className="badge bg-warning text-dark">Indirect</span></td>
                       <td>-</td>
                       {Array.from({length: 31}, (_, i) => {
@@ -230,11 +326,11 @@ const Reports = () => {
                         return (
                           <React.Fragment key={i}>
                             <td>{dayData ? dayData.count : 0}</td>
-                            <td>{dayData ? dayData.duration : 0}</td>
+                            <td>{dayData ? dayData.duration.toFixed(2) : '0.00'}</td>
                           </React.Fragment>
                         );
                       })}
-                      <td style={{fontWeight: 'bold'}}>{item.total}</td>
+                      <td style={{fontWeight: 'bold'}}>{item.total.toFixed(2)}</td>
                     </tr>
                   );
                 })}
@@ -242,7 +338,7 @@ const Reports = () => {
                   <td colSpan={3}>Total Indirect Time</td>
                   <td>min</td>
                   <td colSpan={62}></td>
-                  <td>{totalIndirect.toLocaleString()} min</td>
+                  <td>{totalIndirect.toFixed(2)} min</td>
                 </tr>
 
                 {/* Loss Time Section */}
@@ -254,7 +350,16 @@ const Reports = () => {
                   return (
                     <tr key={`loss-${idx}`}>
                       <td>{idx + 1}</td>
-                      <td>{item.name}</td>
+                      <td>
+                        {item.name}
+                        <button 
+                          className="btn btn-sm btn-link ms-2"
+                          onClick={() => handleEditCategory(item as any)}
+                          title="Edit Category"
+                        >
+                          ✏️
+                        </button>
+                      </td>
                       <td><span className="badge bg-danger">Loss</span></td>
                       <td>-</td>
                       {Array.from({length: 31}, (_, i) => {
@@ -263,11 +368,11 @@ const Reports = () => {
                         return (
                           <React.Fragment key={i}>
                             <td>{dayData ? dayData.count : 0}</td>
-                            <td>{dayData ? dayData.duration : 0}</td>
+                            <td>{dayData ? dayData.duration.toFixed(2) : '0.00'}</td>
                           </React.Fragment>
                         );
                       })}
-                      <td style={{fontWeight: 'bold'}}>{item.total}</td>
+                      <td style={{fontWeight: 'bold'}}>{item.total.toFixed(2)}</td>
                     </tr>
                   );
                 })}
@@ -275,7 +380,7 @@ const Reports = () => {
                   <td colSpan={3}>Total Loss Time</td>
                   <td>min</td>
                   <td colSpan={62}></td>
-                  <td>{totalLoss.toLocaleString()} min</td>
+                  <td>{totalLoss.toFixed(2)} min</td>
                 </tr>
 
                 {/* OHE Summary */}
@@ -299,6 +404,62 @@ const Reports = () => {
           </div>
         </div>
       </div>
+
+      {/* Edit Category Modal */}
+      {showEditModal && editItem && (
+        <div className="modal fade show" style={{display: 'block', backgroundColor: 'rgba(0,0,0,0.5)'}}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Edit Category</h5>
+                <button type="button" className="btn-close" onClick={() => setShowEditModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <p><strong>Activity:</strong> {editItem.activity_name || editItem.jenis_pekerjaan}</p>
+                <p><strong>Current Category:</strong> {editItem.kategori_pekerjaan || editItem.category}</p>
+                <hr/>
+                <h6>Select New Category from Activity List:</h6>
+                <div className="mb-3">
+                  <label className="form-label">Search Activity:</label>
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    placeholder="Type to search activity..."
+                    id="activitySearch"
+                    onKeyUp={(e) => {
+                      const searchTerm = (e.target as HTMLInputElement).value.toLowerCase();
+                      const options = document.querySelectorAll('#activitySelect option');
+                      options.forEach(option => {
+                        const text = option.textContent?.toLowerCase() || '';
+                        (option as HTMLOptionElement).style.display = text.includes(searchTerm) ? '' : 'none';
+                      });
+                    }}
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Select Activity:</label>
+                  <select className="form-select" id="activitySelect" size={10}>
+                    {activities.map((activity, idx) => (
+                      <option key={idx} value={activity.activity_name}>
+                        {activity.activity_name} ({activity.category})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="alert alert-info">
+                  <small>
+                    <strong>Note:</strong> Changing the activity will automatically update the category based on the selected activity's category.
+                  </small>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEditModal(false)}>Cancel</button>
+                <button type="button" className="btn btn-primary" onClick={handleSaveCategory}>Save Changes</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
