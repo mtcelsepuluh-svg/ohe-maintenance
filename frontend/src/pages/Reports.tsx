@@ -69,13 +69,20 @@ const Reports = () => {
     if (!editItem) return;
 
     try {
-      // Get selected activity from dropdown
-      const selectElement = document.getElementById('activitySelect') as HTMLSelectElement;
-      const selectedActivityName = selectElement.value;
-      const selectedActivity = activities.find(a => a.activity_name === selectedActivityName);
+      // Get selected category from dropdown
+      const selectElement = document.getElementById('categorySelect') as HTMLSelectElement;
+      const selectedCategory = selectElement.value;
       
-      if (selectedActivity) {
-        // Update the OHE input with new activity name and category
+      if (selectedCategory) {
+        // Map category to kategori_pekerjaan
+        const categoryMap: {[key: string]: string} = {
+          'VALUE TIME': 'Corective',
+          'DIRECT': 'Preventive',
+          'INDIRECT': 'Indirect',
+          'LOSS': 'Loss'
+        };
+
+        // Update the OHE input with new category
         await fetch(`/api/oheinputs/${editItem._id}`, {
           method: 'PUT',
           headers: {
@@ -83,9 +90,8 @@ const Reports = () => {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           },
           body: JSON.stringify({
-            activity_name: selectedActivity.activity_name,
-            category: selectedActivity.category,
-            kategori_pekerjaan: selectedActivity.category
+            category: selectedCategory,
+            kategori_pekerjaan: categoryMap[selectedCategory] || selectedCategory
           })
         });
 
@@ -95,7 +101,7 @@ const Reports = () => {
         setEditItem(null);
         alert('Category updated successfully!');
       } else {
-        alert('Please select an activity from the list');
+        alert('Please select a category');
       }
     } catch (error) {
       console.error('Failed to update category:', error);
@@ -266,17 +272,12 @@ const Reports = () => {
                   return (
                     <tr key={`value-${idx}`}>
                       <td>{idx + 1}</td>
+                      <td>{item.name}</td>
                       <td>
-                        {item.name}
-                        <button 
-                          className="btn btn-sm btn-link ms-2"
-                          onClick={() => handleEditCategory(item as any)}
-                          title="Edit Category"
-                        >
-                          ✏️
-                        </button>
+                        <span className="badge bg-success" style={{cursor: 'pointer'}} onClick={() => handleEditCategory(item as any)}>
+                          Value ✏️
+                        </span>
                       </td>
-                      <td><span className="badge bg-success">Value</span></td>
                       <td>-</td>
                       {Array.from({length: 31}, (_, i) => {
                         const day = i + 1;
@@ -308,17 +309,12 @@ const Reports = () => {
                   return (
                     <tr key={`indirect-${idx}`}>
                       <td>{idx + 1}</td>
+                      <td>{item.name}</td>
                       <td>
-                        {item.name}
-                        <button 
-                          className="btn btn-sm btn-link ms-2"
-                          onClick={() => handleEditCategory(item as any)}
-                          title="Edit Category"
-                        >
-                          ✏️
-                        </button>
+                        <span className="badge bg-warning text-dark" style={{cursor: 'pointer'}} onClick={() => handleEditCategory(item as any)}>
+                          Indirect ✏️
+                        </span>
                       </td>
-                      <td><span className="badge bg-warning text-dark">Indirect</span></td>
                       <td>-</td>
                       {Array.from({length: 31}, (_, i) => {
                         const day = i + 1;
@@ -350,17 +346,12 @@ const Reports = () => {
                   return (
                     <tr key={`loss-${idx}`}>
                       <td>{idx + 1}</td>
+                      <td>{item.name}</td>
                       <td>
-                        {item.name}
-                        <button 
-                          className="btn btn-sm btn-link ms-2"
-                          onClick={() => handleEditCategory(item as any)}
-                          title="Edit Category"
-                        >
-                          ✏️
-                        </button>
+                        <span className="badge bg-danger" style={{cursor: 'pointer'}} onClick={() => handleEditCategory(item as any)}>
+                          Loss ️
+                        </span>
                       </td>
-                      <td><span className="badge bg-danger">Loss</span></td>
                       <td>-</td>
                       {Array.from({length: 31}, (_, i) => {
                         const day = i + 1;
@@ -418,37 +409,24 @@ const Reports = () => {
                 <p><strong>Activity:</strong> {editItem.activity_name || editItem.jenis_pekerjaan}</p>
                 <p><strong>Current Category:</strong> {editItem.kategori_pekerjaan || editItem.category}</p>
                 <hr/>
-                <h6>Select New Category from Activity List:</h6>
                 <div className="mb-3">
-                  <label className="form-label">Search Activity:</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
-                    placeholder="Type to search activity..."
-                    id="activitySearch"
-                    onKeyUp={(e) => {
-                      const searchTerm = (e.target as HTMLInputElement).value.toLowerCase();
-                      const options = document.querySelectorAll('#activitySelect option');
-                      options.forEach(option => {
-                        const text = option.textContent?.toLowerCase() || '';
-                        (option as HTMLOptionElement).style.display = text.includes(searchTerm) ? '' : 'none';
-                      });
-                    }}
-                  />
-                </div>
-                <div className="mb-3">
-                  <label className="form-label">Select Activity:</label>
-                  <select className="form-select" id="activitySelect" size={10}>
-                    {activities.map((activity, idx) => (
-                      <option key={idx} value={activity.activity_name}>
-                        {activity.activity_name} ({activity.category})
-                      </option>
-                    ))}
+                  <label className="form-label"><strong>Select New Category:</strong></label>
+                  <select className="form-select" id="categorySelect" defaultValue={editItem.category || editItem.kategori_pekerjaan}>
+                    <option value="VALUE TIME">Value Time (Corrective & Preventive)</option>
+                    <option value="DIRECT">Direct Time</option>
+                    <option value="INDIRECT">Indirect Time</option>
+                    <option value="LOSS">Loss Time</option>
                   </select>
                 </div>
                 <div className="alert alert-info">
                   <small>
-                    <strong>Note:</strong> Changing the activity will automatically update the category based on the selected activity's category.
+                    <strong>Note:</strong> 
+                    <ul className="mb-0 mt-2">
+                      <li><strong>Value Time:</strong> Corrective & Preventive maintenance</li>
+                      <li><strong>Direct Time:</strong> Direct work activities</li>
+                      <li><strong>Indirect Time:</strong> Support activities (briefing, 5R, meeting, etc)</li>
+                      <li><strong>Loss Time:</strong> Waiting time, delays, idle time</li>
+                    </ul>
                   </small>
                 </div>
               </div>
