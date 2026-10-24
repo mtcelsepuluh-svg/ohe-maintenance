@@ -51,6 +51,11 @@ export interface OHEInput {
   production_result: string;
   remarks: string;
   created_by: string;
+  // Fields from import
+  jenis_pekerjaan?: string;
+  kategori_pekerjaan?: string;
+  loss_time?: string;
+  nama?: string;
 }
 
 export interface OHEInputCreate {

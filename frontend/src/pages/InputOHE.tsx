@@ -304,17 +304,17 @@ const InputOHE = () => {
                     <td>
                       <small>{input.record_id}</small>
                     </td>
-                    <td>{input.activity_name}</td>
+                    <td>{input.activity_name || input.jenis_pekerjaan || '-'}</td>
                     <td>
-                      <span className={`badge bg-${getCategoryColor(input.category)}`}>
-                        {input.category}
+                      <span className={`badge bg-${getCategoryColor(input.category || input.kategori_pekerjaan)}`}>
+                        {input.category || input.kategori_pekerjaan || '-'}
                       </span>
                     </td>
                     <td>
-                      {input.start_time} - {input.end_time}
+                      {input.start_time && input.end_time ? `${input.start_time} - ${input.end_time}` : '-'}
                     </td>
                     <td>{input.actual_time_min} mins</td>
-                    <td>{input.remarks || '-'}</td>
+                    <td>{input.remarks || input.loss_time || '-'}</td>
                   </tr>
                 ))}
               </tbody>
