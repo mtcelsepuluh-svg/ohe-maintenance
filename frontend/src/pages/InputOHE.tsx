@@ -35,7 +35,7 @@ const InputOHE = () => {
     try {
       const [activitiesData, inputsData] = await Promise.all([
         activityService.getValueTimes({ status: 'active' }),
-        oheService.getInputs({ date: format(new Date(), 'yyyy-MM-dd') }),
+        oheService.getInputs({}),
       ]);
       setActivities(activitiesData);
       setOheInputs(inputsData);
