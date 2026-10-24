@@ -51,7 +51,13 @@ const WorkTimeSheet = () => {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       const data = await response.json();
-      setMekaniks(data.data || []);
+      // Map nama_mekanik to name for consistency
+      const mekaniks = (data.data || []).map((m: any) => ({
+        ...m,
+        name: m.nama_mekanik,
+        user_id: m.machine_code
+      }));
+      setMekaniks(mekaniks);
     } catch (error) {
       console.error('Failed to load mekaniks:', error);
     }
