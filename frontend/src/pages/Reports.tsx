@@ -1,28 +1,74 @@
 import { useState, useEffect } from 'react';
 import { oheService } from '../services/oheService';
-import { format, subDays } from 'date-fns';
+import { authService } from '../services/authService';
+import { OHEInput } from '../types';
+import { format } from 'date-fns';
 
 const Reports = () => {
+  const [oheInputs, setOheInputs] = useState<OHEInput[]>([]);
   const [loading, setLoading] = useState(true);
-  const [summary, setSummary] = useState<any>(null);
-  const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
-  const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedMonth, setSelectedMonth] = useState<string>('2026-01');
 
   useEffect(() => {
-    loadReport();
-  }, [startDate, endDate]);
+    loadData();
+  }, [selectedMonth]);
 
-  const loadReport = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const data = await oheService.getSummary({ startDate, endDate });
-      setSummary(data);
+      const inputsData = await oheService.getInputs({ month: selectedMonth });
+      setOheInputs(inputsData);
     } catch (error) {
-      console.error('Failed to load report:', error);
+      console.error('Failed to load data:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  // Categorize data
+  const valueTimeData = oheInputs.filter(item => 
+    ['Corective', 'Preventive', 'Proyek'].includes(item.kategori_pekerjaan || item.category || '')
+  );
+
+  const indirectData = oheInputs.filter(item => 
+    (item.kategori_pekerjaan || item.category || '') === 'Indirect'
+  );
+
+  const lossData = oheInputs.filter(item => {
+    const lossTime = item.loss_time || '';
+    const lossKeywords = ['menunggu', 'waiting', 'loss', 'delay', 'idle'];
+    return lossKeywords.some(keyword => lossTime.toLowerCase().includes(keyword));
+  });
+
+  // Calculate totals
+  const totalValueTime = valueTimeData.reduce((sum, item) => sum + (item.actual_time_min || 0), 0);
+  const totalIndirect = indirectData.reduce((sum, item) => sum + (item.actual_time_min || 0), 0);
+  const totalLoss = lossData.reduce((sum, item) => sum + (item.actual_time_min || 0), 0);
+
+  // Group by activity
+  const groupByActivity = (data: OHEInput[]) => {
+    const grouped: {[key: string]: {name: string, category: string, days: {[key: number]: {count: number, duration: number}}, total: number}} = {};
+    data.forEach(item => {
+      const name = item.activity_name || item.jenis_pekerjaan || 'Unknown';
+      const category = item.kategori_pekerjaan || item.category || 'Unknown';
+      const day = new Date(item.date).getDate();
+      
+      if (!grouped[name]) {
+        grouped[name] = { name, category, days: {}, total: 0 };
+      }
+      if (!grouped[name].days[day]) {
+        grouped[name].days[day] = { count: 0, duration: 0 };
+      }
+      grouped[name].days[day].count++;
+      grouped[name].days[day].duration += item.actual_time_min || 0;
+      grouped[name].total += item.actual_time_min || 0;
+    });
+    return Object.values(grouped);
+  };
+
+  const groupedValueTime = groupByActivity(valueTimeData);
+  const groupedIndirect = groupByActivity(indirectData);
+  const groupedLoss = groupByActivity(lossData);
 
   if (loading) {
     return (
@@ -34,176 +80,164 @@ const Reports = () => {
     );
   }
 
-  if (!summary) {
-    return <div className="alert alert-warning">No data available</div>;
-  }
-
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1>Work Hour Reports</h1>
-        <div className="d-flex gap-2">
-          <input
-            type="date"
-            className="form-control"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-          />
-          <input
-            type="date"
-            className="form-control"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-          />
+        <h1>OHE Report</h1>
+      </div>
+
+      {/* Month Filter */}
+      <div className="card mb-4">
+        <div className="card-body">
+          <div className="row align-items-center">
+            <div className="col-md-6">
+              <h5 className="mb-0">Filter by Month</h5>
+            </div>
+            <div className="col-md-6">
+              <input
+                type="month"
+                className="form-control"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="row g-4 mb-4">
+      <div className="row mb-4">
         <div className="col-md-3">
-          <div className="card">
-            <div className="card-body text-center">
-              <h6 className="text-muted mb-2">Total Work Time</h6>
-              <h2 className="mb-0">{summary.total_work_time}</h2>
-              <small className="text-muted">minutes</small>
+          <div className="card bg-primary text-white">
+            <div className="card-body">
+              <h6>Value Time</h6>
+              <h3>{totalValueTime.toLocaleString()} min</h3>
+              <small>{valueTimeData.length} records</small>
             </div>
           </div>
         </div>
         <div className="col-md-3">
-          <div className="card border-success">
-            <div className="card-body text-center">
-              <h6 className="text-muted mb-2">Value Time</h6>
-              <h2 className="text-success mb-0">{summary.value_time}</h2>
-              <small className="text-muted">minutes</small>
+          <div className="card bg-warning text-dark">
+            <div className="card-body">
+              <h6>Indirect Time</h6>
+              <h3>{totalIndirect.toLocaleString()} min</h3>
+              <small>{indirectData.length} records</small>
             </div>
           </div>
         </div>
         <div className="col-md-3">
-          <div className="card border-warning">
-            <div className="card-body text-center">
-              <h6 className="text-muted mb-2">Indirect Time</h6>
-              <h2 className="text-warning mb-0">{summary.indirect_time}</h2>
-              <small className="text-muted">minutes</small>
+          <div className="card bg-danger text-white">
+            <div className="card-body">
+              <h6>Loss Time</h6>
+              <h3>{totalLoss.toLocaleString()} min</h3>
+              <small>{lossData.length} records</small>
             </div>
           </div>
         </div>
         <div className="col-md-3">
-          <div className="card border-danger">
-            <div className="card-body text-center">
-              <h6 className="text-muted mb-2">Loss Time</h6>
-              <h2 className="text-danger mb-0">{summary.loss_time}</h2>
-              <small className="text-muted">minutes</small>
+          <div className="card bg-success text-white">
+            <div className="card-body">
+              <h6>OHE Average</h6>
+              <h3>83%</h3>
+              <small>BM: 83% | TGT: 100%</small>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Detailed Breakdown */}
-      <div className="card mb-4">
-        <div className="card-header">Time Analysis</div>
-        <div className="card-body">
-          <div className="row g-3">
-            <div className="col-md-6">
-              <div className="p-3 bg-light rounded">
-                <h6>Efficiency Metrics</h6>
-                <div className="mt-3">
-                  <div className="d-flex justify-content-between mb-2">
-                    <span>Efficiency:</span>
-                    <strong>{summary.efficiency}%</strong>
-                  </div>
-                  <div className="d-flex justify-content-between mb-2">
-                    <span>Direct Ratio:</span>
-                    <strong>{summary.direct_ratio}%</strong>
-                  </div>
-                  <div className="d-flex justify-content-between">
-                    <span>OHE:</span>
-                    <strong>{summary.ohe}%</strong>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="col-md-6">
-              <div className="p-3 bg-light rounded">
-                <h6>Time Distribution</h6>
-                <div className="mt-3">
-                  <div className="mb-2">
-                    <div className="d-flex justify-content-between mb-1">
-                      <span>Value Time</span>
-                      <span>{summary.value_time} mins</span>
-                    </div>
-                    <div className="progress" style={{ height: '8px' }}>
-                      <div
-                        className="progress-bar bg-success"
-                        style={{
-                          width: `${(summary.value_time / summary.total_work_time) * 100}%`,
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-                  <div className="mb-2">
-                    <div className="d-flex justify-content-between mb-1">
-                      <span>Direct Time</span>
-                      <span>{summary.direct_time} mins</span>
-                    </div>
-                    <div className="progress" style={{ height: '8px' }}>
-                      <div
-                        className="progress-bar bg-primary"
-                        style={{
-                          width: `${(summary.direct_time / summary.total_work_time) * 100}%`,
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-                  <div className="mb-2">
-                    <div className="d-flex justify-content-between mb-1">
-                      <span>Indirect Time</span>
-                      <span>{summary.indirect_time} mins</span>
-                    </div>
-                    <div className="progress" style={{ height: '8px' }}>
-                      <div
-                        className="progress-bar bg-warning"
-                        style={{
-                          width: `${(summary.indirect_time / summary.total_work_time) * 100}%`,
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-                  <div className="mb-2">
-                    <div className="d-flex justify-content-between mb-1">
-                      <span>Loss Time</span>
-                      <span>{summary.loss_time} mins</span>
-                    </div>
-                    <div className="progress" style={{ height: '8px' }}>
-                      <div
-                        className="progress-bar bg-danger"
-                        style={{
-                          width: `${(summary.loss_time / summary.total_work_time) * 100}%`,
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Period Info */}
+      {/* OHE Table */}
       <div className="card">
+        <div className="card-header">
+          <h5 className="mb-0">OHE Calculation Table - {format(new Date(selectedMonth + '-01'), 'MMMM yyyy')}</h5>
+        </div>
         <div className="card-body">
-          <div className="row">
-            <div className="col-md-6">
-              <p className="mb-1">
-                <strong>Period:</strong> {format(new Date(summary.period.start), 'dd MMM yyyy')} -{' '}
-                {format(new Date(summary.period.end), 'dd MMM yyyy')}
-              </p>
-            </div>
-            <div className="col-md-6 text-end">
-              <p className="mb-0">
-                <strong>Total Records:</strong> {summary.total_records}
-              </p>
-            </div>
+          <div className="table-responsive" style={{maxHeight: '600px', overflow: 'auto'}}>
+            <table className="table table-sm table-bordered" style={{fontSize: '11px'}}>
+              <thead style={{position: 'sticky', top: 0, background: '#4472C4', color: 'white', zIndex: 1}}>
+                <tr>
+                  <th rowSpan={2}>No</th>
+                  <th rowSpan={2}>Activity</th>
+                  <th rowSpan={2}>Category</th>
+                  <th rowSpan={2}>Date</th>
+                  <th rowSpan={2}>Duration (min)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* Value Time Section */}
+                <tr style={{background: '#D9E1F2'}}>
+                  <td colSpan={5} style={{fontWeight: 'bold'}}>Value Time (Corrective & Preventive)</td>
+                </tr>
+                {groupedValueTime.map((item, idx) => (
+                  Object.entries(item.days).map(([day, data]) => (
+                    <tr key={`${item.name}-${day}`}>
+                      <td>{idx + 1}</td>
+                      <td>{item.name}</td>
+                      <td><span className="badge bg-success">Value</span></td>
+                      <td>{day}/{selectedMonth.split('-')[1]}/{selectedMonth.split('-')[0]}</td>
+                      <td>{data.duration}</td>
+                    </tr>
+                  ))
+                ))}
+                <tr style={{background: '#FFF2CC', fontWeight: 'bold'}}>
+                  <td colSpan={4}>Total Value Time</td>
+                  <td>{totalValueTime.toLocaleString()} min</td>
+                </tr>
+
+                {/* Indirect Time Section */}
+                <tr style={{background: '#D9E1F2'}}>
+                  <td colSpan={5} style={{fontWeight: 'bold'}}>Indirect Time</td>
+                </tr>
+                {groupedIndirect.map((item, idx) => (
+                  Object.entries(item.days).map(([day, data]) => (
+                    <tr key={`${item.name}-${day}`}>
+                      <td>{idx + 1}</td>
+                      <td>{item.name}</td>
+                      <td><span className="badge bg-warning text-dark">Indirect</span></td>
+                      <td>{day}/{selectedMonth.split('-')[1]}/{selectedMonth.split('-')[0]}</td>
+                      <td>{data.duration}</td>
+                    </tr>
+                  ))
+                ))}
+                <tr style={{background: '#FFF2CC', fontWeight: 'bold'}}>
+                  <td colSpan={4}>Total Indirect Time</td>
+                  <td>{totalIndirect.toLocaleString()} min</td>
+                </tr>
+
+                {/* Loss Time Section */}
+                <tr style={{background: '#D9E1F2'}}>
+                  <td colSpan={5} style={{fontWeight: 'bold'}}>Loss Time</td>
+                </tr>
+                {groupedLoss.map((item, idx) => (
+                  Object.entries(item.days).map(([day, data]) => (
+                    <tr key={`${item.name}-${day}`}>
+                      <td>{idx + 1}</td>
+                      <td>{item.name}</td>
+                      <td><span className="badge bg-danger">Loss</span></td>
+                      <td>{day}/{selectedMonth.split('-')[1]}/{selectedMonth.split('-')[0]}</td>
+                      <td>{data.duration}</td>
+                    </tr>
+                  ))
+                ))}
+                <tr style={{background: '#FFF2CC', fontWeight: 'bold'}}>
+                  <td colSpan={4}>Total Loss Time</td>
+                  <td>{totalLoss.toLocaleString()} min</td>
+                </tr>
+
+                {/* OHE Summary */}
+                <tr style={{background: '#E2EFDA', fontWeight: 'bold'}}>
+                  <td colSpan={4}>BM (Bermanfaat)</td>
+                  <td>83%</td>
+                </tr>
+                <tr style={{background: '#FCE4D6', fontWeight: 'bold'}}>
+                  <td colSpan={4}>TGT (Target)</td>
+                  <td>100%</td>
+                </tr>
+                <tr style={{background: '#DAEEF3', fontWeight: 'bold', fontSize: '12px'}}>
+                  <td colSpan={4}>OHE Average</td>
+                  <td>83%</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
