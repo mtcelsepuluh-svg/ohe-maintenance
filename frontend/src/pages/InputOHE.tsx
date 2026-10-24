@@ -11,6 +11,9 @@ const InputOHE = () => {
   const [oheInputs, setOheInputs] = useState<OHEInput[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<string>(
+    format(new Date(), 'yyyy-MM')
+  );
   const [formData, setFormData] = useState<OHEInputCreate>({
     date: format(new Date(), 'yyyy-MM-dd'),
     shift: '1',
@@ -28,14 +31,14 @@ const InputOHE = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [selectedMonth]);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const [activitiesData, inputsData] = await Promise.all([
         activityService.getValueTimes({ status: 'active' }),
-        oheService.getInputs({}),
+        oheService.getInputs({ month: selectedMonth }),
       ]);
       setActivities(activitiesData);
       setOheInputs(inputsData);
@@ -129,6 +132,25 @@ const InputOHE = () => {
         <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
           {showForm ? 'Cancel' : '+ New Activity'}
         </button>
+      </div>
+
+      {/* Month Filter */}
+      <div className="card mb-4">
+        <div className="card-body">
+          <div className="row align-items-center">
+            <div className="col-md-6">
+              <h5 className="mb-0">Filter by Month</h5>
+            </div>
+            <div className="col-md-6">
+              <input
+                type="month"
+                className="form-control"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Form */}

@@ -7,13 +7,22 @@ const Log = require('../models/Log');
 // @access  Private
 const getOHEInputs = async (req, res) => {
   try {
-    const { date, nama, kategori_pekerjaan, startDate, endDate } = req.query;
+    const { date, nama, kategori_pekerjaan, startDate, endDate, month } = req.query;
 
     let query = {};
 
     if (date) query.date = new Date(date);
     if (nama) query.nama = nama;
     if (kategori_pekerjaan) query.kategori_pekerjaan = kategori_pekerjaan;
+    
+    // Filter by month (format: YYYY-MM)
+    if (month) {
+      const [year, monthNum] = month.split('-');
+      const startDate = new Date(year, monthNum - 1, 1);
+      const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+      query.date = { $gte: startDate, $lte: endDate };
+    }
+    
     if (startDate || endDate) {
       query.date = {};
       if (startDate) query.date.$gte = new Date(startDate);
