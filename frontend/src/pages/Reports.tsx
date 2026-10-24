@@ -119,9 +119,9 @@ const Reports = () => {
       } else {
         alert('Please select a category');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update category:', error);
-      alert('Failed to update category');
+      alert('Failed to update category: ' + error.message);
     }
   };
 
@@ -154,14 +154,14 @@ const Reports = () => {
 
   // Group by activity
   const groupByActivity = (data: OHEInput[]) => {
-    const grouped: {[key: string]: {name: string, category: string, days: {[key: number]: {count: number, duration: number}}, total: number}} = {};
+    const grouped: {[key: string]: {name: string, category: string, _id: string, days: {[key: number]: {count: number, duration: number}}, total: number}} = {};
     data.forEach(item => {
       const name = item.activity_name || item.jenis_pekerjaan || 'Unknown';
       const category = item.kategori_pekerjaan || item.category || 'Unknown';
       const day = new Date(item.date).getDate();
-      
+
       if (!grouped[name]) {
-        grouped[name] = { name, category, days: {}, total: 0 };
+        grouped[name] = { name, category, _id: item._id, days: {}, total: 0 };
       }
       if (!grouped[name].days[day]) {
         grouped[name].days[day] = { count: 0, duration: 0 };
@@ -297,7 +297,7 @@ const Reports = () => {
                       <td>{idx + 1}</td>
                       <td>{item.name}</td>
                       <td>
-                        <span className="badge bg-success" style={{cursor: 'pointer'}} onClick={() => handleEditCategory(item as any)}>
+                        <span className="badge bg-success" style={{cursor: 'pointer'}} onClick={() => handleEditCategory({...item, _id: item._id} as any)}>
                           Value ✏️
                         </span>
                       </td>
@@ -334,7 +334,7 @@ const Reports = () => {
                       <td>{idx + 1}</td>
                       <td>{item.name}</td>
                       <td>
-                        <span className="badge bg-warning text-dark" style={{cursor: 'pointer'}} onClick={() => handleEditCategory(item as any)}>
+                        <span className="badge bg-warning text-dark" style={{cursor: 'pointer'}} onClick={() => handleEditCategory({...item, _id: item._id} as any)}>
                           Indirect ✏️
                         </span>
                       </td>
@@ -371,7 +371,7 @@ const Reports = () => {
                       <td>{idx + 1}</td>
                       <td>{item.name}</td>
                       <td>
-                        <span className="badge bg-danger" style={{cursor: 'pointer'}} onClick={() => handleEditCategory(item as any)}>
+                        <span className="badge bg-danger" style={{cursor: 'pointer'}} onClick={() => handleEditCategory({...item, _id: item._id} as any)}>
                           Loss ️
                         </span>
                       </td>
