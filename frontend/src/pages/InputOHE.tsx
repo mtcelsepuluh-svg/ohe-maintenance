@@ -302,15 +302,16 @@ const InputOHE = () => {
         </div>
       )}
 
-      {/* Today's Activities */}
+      {/* Activities */}
       <div className="card">
-        <div className="card-header">Today's Activities ({format(new Date(), 'dd MMM yyyy')})</div>
+        <div className="card-header">Activities ({format(new Date(selectedMonth + '-01'), 'MMMM yyyy')})</div>
         <div className="card-body">
           <div className="table-responsive">
             <table className="table table-hover">
               <thead>
                 <tr>
                   <th>Record ID</th>
+                  <th>Date</th>
                   <th>Activity</th>
                   <th>Category</th>
                   <th>Time</th>
@@ -324,6 +325,7 @@ const InputOHE = () => {
                     <td>
                       <small>{input.record_id}</small>
                     </td>
+                    <td>{format(new Date(input.date), 'dd/MM/yyyy')}</td>
                     <td>{input.activity_name || input.jenis_pekerjaan || '-'}</td>
                     <td>
                       <span className={`badge bg-${getCategoryColor(input.category || input.kategori_pekerjaan)}`}>
