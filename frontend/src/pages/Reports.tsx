@@ -21,6 +21,7 @@ const Reports = () => {
     setLoading(true);
     try {
       const inputsData = await oheService.getInputs({ month: selectedMonth });
+      console.log('Loaded data:', inputsData.length, 'records');
       setOheInputs(inputsData);
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -82,8 +83,15 @@ const Reports = () => {
           'LOSS': 'Loss'
         };
 
+        console.log('Updating category:', {
+          id: editItem._id,
+          from: editItem.kategori_pekerjaan || editItem.category,
+          to: selectedCategory,
+          mappedTo: categoryMap[selectedCategory]
+        });
+
         // Update the OHE input with new category
-        await fetch(`/api/oheinputs/${editItem._id}`, {
+        const response = await fetch(`/api/oheinputs/${editItem._id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -95,11 +103,19 @@ const Reports = () => {
           })
         });
 
-        // Reload data
-        await loadData();
-        setShowEditModal(false);
-        setEditItem(null);
-        alert('Category updated successfully!');
+        const result = await response.json();
+        console.log('Update result:', result);
+
+        if (result.success) {
+          // Reload data
+          console.log('Reloading data...');
+          await loadData();
+          setShowEditModal(false);
+          setEditItem(null);
+          alert('Category updated successfully! Activity will move to the new section.');
+        } else {
+          alert('Failed to update category: ' + (result.message || 'Unknown error'));
+        }
       } else {
         alert('Please select a category');
       }
@@ -110,11 +126,11 @@ const Reports = () => {
   };
 
   // Categorize data
-  const valueTimeData = oheInputs.filter(item => 
+  const valueTimeData = oheInputs.filter(item =>
     ['Corective', 'Preventive', 'Proyek'].includes(item.kategori_pekerjaan || item.category || '')
   );
 
-  const indirectData = oheInputs.filter(item => 
+  const indirectData = oheInputs.filter(item =>
     (item.kategori_pekerjaan || item.category || '') === 'Indirect'
   );
 
@@ -122,6 +138,13 @@ const Reports = () => {
     const lossTime = item.loss_time || '';
     const lossKeywords = ['menunggu', 'waiting', 'loss', 'delay', 'idle'];
     return lossKeywords.some(keyword => lossTime.toLowerCase().includes(keyword));
+  });
+
+  console.log('Categorized data:', {
+    valueTime: valueTimeData.length,
+    indirect: indirectData.length,
+    loss: lossData.length,
+    total: oheInputs.length
   });
 
   // Calculate totals
