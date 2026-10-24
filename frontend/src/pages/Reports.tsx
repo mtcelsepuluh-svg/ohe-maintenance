@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { oheService } from '../services/oheService';
 import { authService } from '../services/authService';
 import { OHEInput } from '../types';
@@ -152,88 +152,146 @@ const Reports = () => {
         </div>
         <div className="card-body">
           <div className="table-responsive" style={{maxHeight: '600px', overflow: 'auto'}}>
-            <table className="table table-sm table-bordered" style={{fontSize: '11px'}}>
+            <table className="table table-sm table-bordered" style={{fontSize: '10px', minWidth: '2000px'}}>
               <thead style={{position: 'sticky', top: 0, background: '#4472C4', color: 'white', zIndex: 1}}>
                 <tr>
-                  <th rowSpan={2}>No</th>
-                  <th rowSpan={2}>Activity</th>
-                  <th rowSpan={2}>Category</th>
-                  <th rowSpan={2}>Date</th>
-                  <th rowSpan={2}>Duration (min)</th>
+                  <th rowSpan={3} style={{minWidth: '30px'}}>No</th>
+                  <th rowSpan={3} style={{minWidth: '200px'}}>Activity</th>
+                  <th rowSpan={3} style={{minWidth: '80px'}}>Category</th>
+                  <th rowSpan={3} style={{minWidth: '80px'}}>Standard<br/>(min)</th>
+                  <th colSpan={62}>Daily Data ({format(new Date(selectedMonth + '-01'), 'MMMM yyyy')})</th>
+                  <th rowSpan={3} style={{minWidth: '100px'}}>Total<br/>Month</th>
+                </tr>
+                <tr>
+                  {Array.from({length: 31}, (_, i) => (
+                    <th key={i} colSpan={2} style={{minWidth: '80px'}}>
+                      {i + 1}-{selectedMonth.split('-')[1]}
+                    </th>
+                  ))}
+                </tr>
+                <tr>
+                  {Array.from({length: 31}, (_, i) => (
+                    <React.Fragment key={i}>
+                      <th style={{minWidth: '40px'}}>#</th>
+                      <th style={{minWidth: '60px'}}>min</th>
+                    </React.Fragment>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {/* Value Time Section */}
                 <tr style={{background: '#D9E1F2'}}>
-                  <td colSpan={5} style={{fontWeight: 'bold'}}>Value Time (Corrective & Preventive)</td>
+                  <td colSpan={67} style={{fontWeight: 'bold'}}>Value Time (Corrective & Preventive)</td>
                 </tr>
-                {groupedValueTime.map((item, idx) => (
-                  Object.entries(item.days).map(([day, data]) => (
-                    <tr key={`${item.name}-${day}`}>
+                {groupedValueTime.map((item, idx) => {
+                  const daysInMonth = Object.keys(item.days).map(d => parseInt(d)).sort((a, b) => a - b);
+                  return (
+                    <tr key={`value-${idx}`}>
                       <td>{idx + 1}</td>
                       <td>{item.name}</td>
                       <td><span className="badge bg-success">Value</span></td>
-                      <td>{day}/{selectedMonth.split('-')[1]}/{selectedMonth.split('-')[0]}</td>
-                      <td>{data.duration}</td>
+                      <td>-</td>
+                      {Array.from({length: 31}, (_, i) => {
+                        const day = i + 1;
+                        const dayData = item.days[day];
+                        return (
+                          <React.Fragment key={i}>
+                            <td>{dayData ? dayData.count : 0}</td>
+                            <td>{dayData ? dayData.duration : 0}</td>
+                          </React.Fragment>
+                        );
+                      })}
+                      <td style={{fontWeight: 'bold'}}>{item.total}</td>
                     </tr>
-                  ))
-                ))}
+                  );
+                })}
                 <tr style={{background: '#FFF2CC', fontWeight: 'bold'}}>
-                  <td colSpan={4}>Total Value Time</td>
+                  <td colSpan={3}>Total Value Time</td>
+                  <td>min</td>
+                  <td colSpan={62}></td>
                   <td>{totalValueTime.toLocaleString()} min</td>
                 </tr>
 
                 {/* Indirect Time Section */}
                 <tr style={{background: '#D9E1F2'}}>
-                  <td colSpan={5} style={{fontWeight: 'bold'}}>Indirect Time</td>
+                  <td colSpan={67} style={{fontWeight: 'bold'}}>Indirect Time</td>
                 </tr>
-                {groupedIndirect.map((item, idx) => (
-                  Object.entries(item.days).map(([day, data]) => (
-                    <tr key={`${item.name}-${day}`}>
+                {groupedIndirect.map((item, idx) => {
+                  const daysInMonth = Object.keys(item.days).map(d => parseInt(d)).sort((a, b) => a - b);
+                  return (
+                    <tr key={`indirect-${idx}`}>
                       <td>{idx + 1}</td>
                       <td>{item.name}</td>
                       <td><span className="badge bg-warning text-dark">Indirect</span></td>
-                      <td>{day}/{selectedMonth.split('-')[1]}/{selectedMonth.split('-')[0]}</td>
-                      <td>{data.duration}</td>
+                      <td>-</td>
+                      {Array.from({length: 31}, (_, i) => {
+                        const day = i + 1;
+                        const dayData = item.days[day];
+                        return (
+                          <React.Fragment key={i}>
+                            <td>{dayData ? dayData.count : 0}</td>
+                            <td>{dayData ? dayData.duration : 0}</td>
+                          </React.Fragment>
+                        );
+                      })}
+                      <td style={{fontWeight: 'bold'}}>{item.total}</td>
                     </tr>
-                  ))
-                ))}
+                  );
+                })}
                 <tr style={{background: '#FFF2CC', fontWeight: 'bold'}}>
-                  <td colSpan={4}>Total Indirect Time</td>
+                  <td colSpan={3}>Total Indirect Time</td>
+                  <td>min</td>
+                  <td colSpan={62}></td>
                   <td>{totalIndirect.toLocaleString()} min</td>
                 </tr>
 
                 {/* Loss Time Section */}
                 <tr style={{background: '#D9E1F2'}}>
-                  <td colSpan={5} style={{fontWeight: 'bold'}}>Loss Time</td>
+                  <td colSpan={67} style={{fontWeight: 'bold'}}>Loss Time</td>
                 </tr>
-                {groupedLoss.map((item, idx) => (
-                  Object.entries(item.days).map(([day, data]) => (
-                    <tr key={`${item.name}-${day}`}>
+                {groupedLoss.map((item, idx) => {
+                  const daysInMonth = Object.keys(item.days).map(d => parseInt(d)).sort((a, b) => a - b);
+                  return (
+                    <tr key={`loss-${idx}`}>
                       <td>{idx + 1}</td>
                       <td>{item.name}</td>
                       <td><span className="badge bg-danger">Loss</span></td>
-                      <td>{day}/{selectedMonth.split('-')[1]}/{selectedMonth.split('-')[0]}</td>
-                      <td>{data.duration}</td>
+                      <td>-</td>
+                      {Array.from({length: 31}, (_, i) => {
+                        const day = i + 1;
+                        const dayData = item.days[day];
+                        return (
+                          <React.Fragment key={i}>
+                            <td>{dayData ? dayData.count : 0}</td>
+                            <td>{dayData ? dayData.duration : 0}</td>
+                          </React.Fragment>
+                        );
+                      })}
+                      <td style={{fontWeight: 'bold'}}>{item.total}</td>
                     </tr>
-                  ))
-                ))}
+                  );
+                })}
                 <tr style={{background: '#FFF2CC', fontWeight: 'bold'}}>
-                  <td colSpan={4}>Total Loss Time</td>
+                  <td colSpan={3}>Total Loss Time</td>
+                  <td>min</td>
+                  <td colSpan={62}></td>
                   <td>{totalLoss.toLocaleString()} min</td>
                 </tr>
 
                 {/* OHE Summary */}
                 <tr style={{background: '#E2EFDA', fontWeight: 'bold'}}>
                   <td colSpan={4}>BM (Bermanfaat)</td>
+                  <td colSpan={62}></td>
                   <td>83%</td>
                 </tr>
                 <tr style={{background: '#FCE4D6', fontWeight: 'bold'}}>
                   <td colSpan={4}>TGT (Target)</td>
+                  <td colSpan={62}></td>
                   <td>100%</td>
                 </tr>
                 <tr style={{background: '#DAEEF3', fontWeight: 'bold', fontSize: '12px'}}>
                   <td colSpan={4}>OHE Average</td>
+                  <td colSpan={62}></td>
                   <td>83%</td>
                 </tr>
               </tbody>
