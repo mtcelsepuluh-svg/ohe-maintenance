@@ -32,11 +32,11 @@ const oheInputSchema = new mongoose.Schema({
   },
   jam_mulai: {
     type: String,
-    required: true
+    required: false
   },
   jam_selesai: {
     type: String,
-    required: true
+    required: false
   },
   actual_time_min: {
     type: Number,

@@ -52,31 +52,25 @@ const importActivities = async (req, res) => {
         const nama = row['Nama'];
         const jenisPekerjaan = row['Jenis Pekerjaan'];
         const tanggal = row['Tanggal'];
-        const jamMulai = row['Jam Mulai'];
-        const jamSelesai = row['Jam Selesai'];
-        
+        const durasi = row['Durasi ( dlm menit )'] || row['Durasi (dalam menit)'];
+
         if (!nama) {
           errors.push(`Row ${rowNum}: Nama is required`);
           continue;
         }
-        
+
         if (!jenisPekerjaan) {
           errors.push(`Row ${rowNum}: Jenis Pekerjaan is required`);
           continue;
         }
-        
+
         if (!tanggal) {
           errors.push(`Row ${rowNum}: Tanggal is required`);
           continue;
         }
-        
-        if (!jamMulai) {
-          errors.push(`Row ${rowNum}: Jam Mulai is required`);
-          continue;
-        }
-        
-        if (!jamSelesai) {
-          errors.push(`Row ${rowNum}: Jam Selesai is required`);
+
+        if (!durasi) {
+          errors.push(`Row ${rowNum}: Durasi (dalam menit) is required`);
           continue;
         }
         
@@ -89,61 +83,21 @@ const importActivities = async (req, res) => {
         } else {
           dateValue = new Date(tanggal);
         }
-        
+
         if (isNaN(dateValue.getTime())) {
           errors.push(`Row ${rowNum}: Invalid date format`);
           continue;
         }
+
+        // Parse duration
+        const durasiMenit = Number(durasi);
         
-        // Parse times (handle Excel time format or string)
-        let jamMulaiStr, jamSelesaiStr;
-
-        if (typeof jamMulai === 'number') {
-          // Excel time is fraction of day
-          const totalSeconds = Math.round(jamMulai * 86400);
-          const hours = Math.floor(totalSeconds / 3600);
-          const minutes = Math.floor((totalSeconds % 3600) / 60);
-          const seconds = totalSeconds % 60;
-          jamMulaiStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        } else {
-          jamMulaiStr = String(jamMulai).trim();
-        }
-
-        if (typeof jamSelesai === 'number') {
-          const totalSeconds = Math.round(jamSelesai * 86400);
-          const hours = Math.floor(totalSeconds / 3600);
-          const minutes = Math.floor((totalSeconds % 3600) / 60);
-          const seconds = totalSeconds % 60;
-          jamSelesaiStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        } else {
-          jamSelesaiStr = String(jamSelesai).trim();
-        }
-
-        // Validate time format (HH:MM or HH:MM:SS)
-        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/;
-        if (!timeRegex.test(jamMulaiStr)) {
-          errors.push(`Row ${rowNum}: Invalid Jam Mulai format (should be HH:MM or HH:MM:SS)`);
+        if (isNaN(durasiMenit) || durasiMenit <= 0) {
+          errors.push(`Row ${rowNum}: Durasi must be a positive number`);
           continue;
         }
-
-        if (!timeRegex.test(jamSelesaiStr)) {
-          errors.push(`Row ${rowNum}: Invalid Jam Selesai format (should be HH:MM or HH:MM:SS)`);
-          continue;
-        }
-
-        // Calculate duration
-        const startTime = new Date(`2000-01-01T${jamMulaiStr}`);
-        const endTime = new Date(`2000-01-01T${jamSelesaiStr}`);
-
-        if (endTime <= startTime) {
-          errors.push(`Row ${rowNum}: Jam Selesai must be after Jam Mulai`);
-          continue;
-        }
-
-        const durasiMenit = Math.round((endTime - startTime) / 60000);
 
         // Parse optional fields
-        const durasiDariExcel = row['Durasi ( dlm menit )'] || row['Durasi (dalam menit)'] || durasiMenit;
         let kategoriPekerjaan = row['Kategori Pekerjaan'] || 'Preventive';
         const pekerjaanIndirect = row['Pekerjaan Indirect'] || '';
         const durasiIndirect = row['Durasi waktu Indirect'] || 0;
@@ -172,13 +126,11 @@ const importActivities = async (req, res) => {
           jenis_pekerjaan: String(jenisPekerjaan).trim(),
           date: dateValue,
           waktu: dateValue,
-          jam_mulai: jamMulaiStr,
-          jam_selesai: jamSelesaiStr,
-          actual_time_min: Number(durasiDariExcel),
+          actual_time_min: durasiMenit,
           kategori_pekerjaan: kategoriPekerjaan,
           // If category is Indirect, set pekerjaan_indirect and durasi_indirect_min
           pekerjaan_indirect: isIndirect ? String(jenisPekerjaan).trim() : String(pekerjaanIndirect).trim(),
-          durasi_indirect_min: isIndirect ? Number(durasiDariExcel) : (Number(durasiIndirect) || 0),
+          durasi_indirect_min: isIndirect ? durasiMenit : (Number(durasiIndirect) || 0),
           loss_time: String(lossTime).trim(),
           durasi_loss_time_min: Number(durasiLossTime) || 0
         });

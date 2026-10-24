@@ -1,0 +1,231 @@
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 20px;
+        min-height: 100vh;
+    }
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        overflow: hidden;
+    }
+    .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        text-align: center;
+    }
+    .header h1 {
+        font-size: 28px;
+        margin-bottom: 10px;
+    }
+    .header p {
+        font-size: 14px;
+        opacity: 0.9;
+    }
+    .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        padding: 30px;
+        background: #f8f9fa;
+    }
+    .stat-card {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+    .stat-card .number {
+        font-size: 36px;
+        font-weight: bold;
+        color: #667eea;
+        margin-bottom: 5px;
+    }
+    .stat-card .label {
+        font-size: 14px;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .table-container {
+        padding: 30px;
+        overflow-x: auto;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+    thead {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    th {
+        padding: 15px;
+        text-align: left;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 12px;
+        letter-spacing: 1px;
+    }
+    td {
+        padding: 15px;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    tbody tr:hover {
+        background: #f8f9fa;
+        transition: background 0.2s;
+    }
+    .badge {
+        display: inline-block;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .badge-preventive {
+        background: #d4edda;
+        color: #155724;
+    }
+    .badge-corective {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    .badge-proyek {
+        background: #d1ecf1;
+        color: #0c5460;
+    }
+    .badge-indirect {
+        background: #fff3cd;
+        color: #856404;
+    }
+    .duration {
+        font-weight: bold;
+        color: #667eea;
+    }
+    .footer {
+        background: #f8f9fa;
+        padding: 20px 30px;
+        text-align: center;
+        font-size: 13px;
+        color: #666;
+        border-top: 1px solid #e0e0e0;
+    }
+    .success-badge {
+        display: inline-block;
+        background: #28a745;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-weight: 600;
+        margin-top: 10px;
+    }
+</style>
+
+<div class="container">
+    <div class="header">
+        <h1>📋 Input OHE - Imported Data</h1>
+        <p>Data hasil import dengan format baru (hanya durasi)</p>
+        <div class="success-badge">✅ Import Berhasil</div>
+    </div>
+
+    <div class="stats">
+        <div class="stat-card">
+            <div class="number">5</div>
+            <div class="label">Total Records</div>
+        </div>
+        <div class="stat-card">
+            <div class="number">495</div>
+            <div class="label">Total Durasi (menit)</div>
+        </div>
+        <div class="stat-card">
+            <div class="number">4</div>
+            <div class="label">Kategori</div>
+        </div>
+        <div class="stat-card">
+            <div class="number">✓</div>
+            <div class="label">Format Baru</div>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Record ID</th>
+                    <th>Jenis Pekerjaan</th>
+                    <th>Tanggal</th>
+                    <th>Durasi</th>
+                    <th>Kategori</th>
+                    <th>Jam Mulai</th>
+                    <th>Jam Selesai</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>OHE-20261024-91591</strong></td>
+                    <td>Servicing Motor OHE</td>
+                    <td>15 Januari 2026</td>
+                    <td class="duration">45 menit</td>
+                    <td><span class="badge badge-preventive">Preventive</span></td>
+                    <td style="color: #999;">N/A</td>
+                    <td style="color: #999;">N/A</td>
+                </tr>
+                <tr>
+                    <td><strong>OHE-20261024-91592</strong></td>
+                    <td>Perbaikan Pantograph</td>
+                    <td>16 Januari 2026</td>
+                    <td class="duration">120 menit</td>
+                    <td><span class="badge badge-corective">Corective</span></td>
+                    <td style="color: #999;">N/A</td>
+                    <td style="color: #999;">N/A</td>
+                </tr>
+                <tr>
+                    <td><strong>OHE-20261024-91593</strong></td>
+                    <td>Installasi Equipment Baru</td>
+                    <td>17 Januari 2026</td>
+                    <td class="duration">180 menit</td>
+                    <td><span class="badge badge-proyek">Proyek</span></td>
+                    <td style="color: #999;">N/A</td>
+                    <td style="color: #999;">N/A</td>
+                </tr>
+                <tr>
+                    <td><strong>OHE-20261024-91594</strong></td>
+                    <td>Meeting Planning</td>
+                    <td>18 Januari 2026</td>
+                    <td class="duration">60 menit</td>
+                    <td><span class="badge badge-indirect">Indirect</span></td>
+                    <td style="color: #999;">N/A</td>
+                    <td style="color: #999;">N/A</td>
+                </tr>
+                <tr>
+                    <td><strong>OHE-20261024-91595</strong></td>
+                    <td>Inspeksi Rutin</td>
+                    <td>19 Januari 2026</td>
+                    <td class="duration">90 menit</td>
+                    <td><span class="badge badge-preventive">Preventive</span></td>
+                    <td style="color: #999;">N/A</td>
+                    <td style="color: #999;">N/A</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="footer">
+        <p><strong>Format Baru:</strong> Field "Jam Mulai" dan "Jam Selesai" sudah tidak wajib</p>
+        <p><strong>Durasi:</strong> Langsung diinput dari kolom "Durasi (dalam menit)" di Excel</p>
+        <p style="margin-top: 10px; color: #667eea;"><strong>Live URL:</strong> http://localhost:3000/input-ohe</p>
+    </div>
+</div>
