@@ -92,7 +92,7 @@ const Reports = () => {
           'VALUE TIME': 'Corective',
           'DIRECT': 'Preventive',
           'INDIRECT': 'Indirect',
-          'LOSS': 'Loss'
+          'LOSS': 'Indirect' // Loss tidak ada di enum, gunakan Indirect dengan loss_time
         };
 
         console.log('Updating category:', {
