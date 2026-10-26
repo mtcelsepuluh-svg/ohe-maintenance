@@ -38,6 +38,7 @@ const WorkTimeSheet = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [showEditModal, setShowEditModal] = useState(false);
   const [editEntry, setEditEntry] = useState<{
+    sheet_id: string;
     mekanik_id: string;
     mekanik_name: string;
     date: number;
@@ -77,6 +78,7 @@ const WorkTimeSheet = () => {
       
       // Map backend data to frontend expected format
       const mappedData = (data.data || []).map((sheet: any) => ({
+        sheet_id: sheet._id,
         mekanik_id: sheet.personel_id?._id || sheet.personel_id,
         mekanik_name: sheet.personel_name,
         daily_entries: sheet.daily_entries || [],
@@ -142,8 +144,8 @@ const WorkTimeSheet = () => {
     }
   };
 
-  const handleEditClick = (mekanik_id: string, mekanik_name: string, date: number, entry: DailyWorkTime) => {
-    setEditEntry({ mekanik_id, mekanik_name, date, entry });
+  const handleEditClick = (sheet_id: string, mekanik_id: string, mekanik_name: string, date: number, entry: DailyWorkTime) => {
+    setEditEntry({ sheet_id, mekanik_id, mekanik_name, date, entry });
     setShowEditModal(true);
   };
 
@@ -151,7 +153,7 @@ const WorkTimeSheet = () => {
     if (!editEntry) return;
 
     try {
-      const response = await fetch(`/api/worktime/${editEntry.mekanik_id}/day/${editEntry.date}`, {
+      const response = await fetch(`/api/worktime/${editEntry.sheet_id}/day/${editEntry.date}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -323,12 +325,12 @@ const WorkTimeSheet = () => {
                         const isSunday = dayOfWeek === 0;
                         const entry = mekanikData?.daily_entries.find(e => e.date === date);
                         const workingHours = getWorkingHours(day);
-                        
+
                         const effectiveMinutes = entry?.effective_minutes || workingHours.effective;
                         const overtime = entry?.overtime || 0;
                         const absenceType = entry?.absence_type;
                         const leaveHours = entry?.leave_hours || 0;
-                        
+
                         // Calculate net effective minutes based on absence type
                         let netEffective = effectiveMinutes;
                         if (absenceType === 'sakit' || absenceType === 'ijin' || absenceType === 'cuti' || absenceType === 'alpha') {
@@ -364,10 +366,10 @@ const WorkTimeSheet = () => {
                         }
 
                         return (
-                          <td 
-                            key={date} 
+                          <td
+                            key={date}
                             style={cellStyle}
-                            onClick={() => handleEditClick(mekanik._id, mekanik.name, date, {
+                            onClick={() => handleEditClick(mekanikData?.sheet_id || '', mekanik._id, mekanik.name, date, {
                               date,
                               start_time: entry?.start_time || workingHours.start,
                               end_time: entry?.end_time || workingHours.end,
