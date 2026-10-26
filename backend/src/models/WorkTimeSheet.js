@@ -38,8 +38,13 @@ const dailyEntrySchema = new mongoose.Schema({
   },
   absence_type: {
     type: String,
-    enum: ['sakit', 'ijin', 'cuti', 'lain-lain', null],
+    enum: ['sakit', 'ijin', 'cuti', 'alpha', 'ijin_sebagian', 'lain-lain', null],
     default: null
+  },
+  leave_hours: {
+    type: Number,
+    default: 0,
+    min: 0
   },
   remarks: {
     type: String,
@@ -101,12 +106,22 @@ workTimeSheetSchema.index({ personel_id: 1, month: 1, year: 1 }, { unique: true 
 // Pre-save hook to update total_monthly
 workTimeSheetSchema.pre('save', function(next) {
   this.updated_at = Date.now();
-  
+
   // Calculate total_monthly from daily_entries
   this.total_monthly = this.daily_entries.reduce((sum, entry) => {
-    return sum + (entry.total_time || 0);
+    let effectiveTime = entry.total_time || 0;
+    
+    // Adjust for absence types
+    if (entry.absence_type === 'sakit' || entry.absence_type === 'ijin' || 
+        entry.absence_type === 'cuti' || entry.absence_type === 'alpha') {
+      effectiveTime = 0;
+    } else if (entry.absence_type === 'ijin_sebagian' && entry.leave_hours > 0) {
+      effectiveTime = Math.max(0, effectiveTime - (entry.leave_hours * 60));
+    }
+    
+    return sum + effectiveTime;
   }, 0);
-  
+
   if (typeof next === 'function') {
     next();
   }
@@ -172,19 +187,37 @@ workTimeSheetSchema.methods.updateDailyEntry = function(date, updates) {
   if (!entry) {
     throw new Error(`Entry for date ${date} not found`);
   }
-  
+
   Object.assign(entry, updates);
-  
-  // Recalculate total_time
-  if (entry.status === 'absence') {
+
+  // Handle absence types
+  if (entry.absence_type === 'sakit' || entry.absence_type === 'ijin' || 
+      entry.absence_type === 'cuti' || entry.absence_type === 'alpha') {
+    entry.status = 'absence';
     entry.total_time = 0;
+  } else if (entry.absence_type === 'ijin_sebagian') {
+    entry.status = 'present';
+    const leaveMinutes = (entry.leave_hours || 0) * 60;
+    entry.total_time = Math.max(0, entry.standard_time + entry.overtime - leaveMinutes);
   } else {
+    entry.status = 'present';
     entry.total_time = entry.standard_time + entry.overtime;
   }
-  
+
   // Recalculate total_monthly
-  this.total_monthly = this.daily_entries.reduce((sum, e) => sum + (e.total_time || 0), 0);
-  
+  this.total_monthly = this.daily_entries.reduce((sum, e) => {
+    let effectiveTime = e.total_time || 0;
+    
+    if (e.absence_type === 'sakit' || e.absence_type === 'ijin' || 
+        e.absence_type === 'cuti' || e.absence_type === 'alpha') {
+      effectiveTime = 0;
+    } else if (e.absence_type === 'ijin_sebagian' && e.leave_hours > 0) {
+      effectiveTime = Math.max(0, effectiveTime - (e.leave_hours * 60));
+    }
+    
+    return sum + effectiveTime;
+  }, 0);
+
   return entry;
 };
 

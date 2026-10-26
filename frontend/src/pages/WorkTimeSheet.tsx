@@ -17,7 +17,11 @@ interface DailyWorkTime {
   effective_minutes: number;
   overtime: number;
   absence?: string;
+  absence_type?: 'sakit' | 'ijin' | 'cuti' | 'alpha' | 'ijin_sebagian' | 'lain-lain';
+  leave_hours?: number;
 }
+
+type AbsenceType = 'sakit' | 'ijin' | 'cuti' | 'alpha' | 'ijin_sebagian' | 'lain-lain';
 
 interface MekanikWorkTime {
   mekanik_id: string;
@@ -151,7 +155,9 @@ const WorkTimeSheet = () => {
           break_start: editEntry.entry.break_start,
           break_end: editEntry.entry.break_end,
           effective_minutes: editEntry.entry.effective_minutes,
-          overtime: editEntry.entry.overtime
+          overtime: editEntry.entry.overtime,
+          absence_type: editEntry.entry.absence_type,
+          leave_hours: editEntry.entry.leave_hours
         })
       });
 
@@ -237,6 +243,20 @@ const WorkTimeSheet = () => {
               </div>
             </div>
           </div>
+          <div className="row g-3 mt-2">
+            <div className="col-12">
+              <label className="form-label">Absence Legend</label>
+              <div className="d-flex gap-3 flex-wrap" style={{fontSize: '11px'}}>
+                <span><span style={{background: '#fff3cd', padding: '2px 8px', borderRadius: '3px'}}>🤒 Sakit</span></span>
+                <span><span style={{background: '#d1ecf1', padding: '2px 8px', borderRadius: '3px'}}>📝 Ijin</span></span>
+                <span><span style={{background: '#d4edda', padding: '2px 8px', borderRadius: '3px'}}>Ijin Sebagian</span></span>
+                <span><span style={{background: '#f8d7da', padding: '2px 8px', borderRadius: '3px'}}>🏖 Cuti</span></span>
+                <span><span style={{background: '#f5c6cb', padding: '2px 8px', borderRadius: '3px'}}>❌ Alpha</span></span>
+                <span><span style={{background: '#e2e3e5', padding: '2px 8px', borderRadius: '3px'}}>📌 Lain-lain</span></span>
+                <span><span style={{color: 'blue'}}>+Overtime</span></span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -297,7 +317,18 @@ const WorkTimeSheet = () => {
                         
                         const effectiveMinutes = entry?.effective_minutes || workingHours.effective;
                         const overtime = entry?.overtime || 0;
-                        totalMonthly += effectiveMinutes + overtime;
+                        const absenceType = entry?.absence_type;
+                        const leaveHours = entry?.leave_hours || 0;
+                        
+                        // Calculate net effective minutes based on absence type
+                        let netEffective = effectiveMinutes;
+                        if (absenceType === 'sakit' || absenceType === 'ijin' || absenceType === 'cuti' || absenceType === 'alpha') {
+                          netEffective = 0;
+                        } else if (absenceType === 'ijin_sebagian') {
+                          netEffective = effectiveMinutes - (leaveHours * 60);
+                        }
+                        
+                        totalMonthly += netEffective + overtime;
 
                         if (isSunday) {
                           return (
@@ -307,10 +338,26 @@ const WorkTimeSheet = () => {
                           );
                         }
 
+                        // Determine cell background based on absence type
+                        let cellStyle = {cursor: 'pointer', textAlign: 'center' as const};
+                        if (absenceType === 'sakit') {
+                          cellStyle = {...cellStyle, background: '#fff3cd'};
+                        } else if (absenceType === 'ijin') {
+                          cellStyle = {...cellStyle, background: '#d1ecf1'};
+                        } else if (absenceType === 'ijin_sebagian') {
+                          cellStyle = {...cellStyle, background: '#d4edda'};
+                        } else if (absenceType === 'cuti') {
+                          cellStyle = {...cellStyle, background: '#f8d7da'};
+                        } else if (absenceType === 'alpha') {
+                          cellStyle = {...cellStyle, background: '#f5c6cb'};
+                        } else if (absenceType === 'lain-lain') {
+                          cellStyle = {...cellStyle, background: '#e2e3e5'};
+                        }
+
                         return (
                           <td 
                             key={date} 
-                            style={{cursor: 'pointer', textAlign: 'center'}}
+                            style={cellStyle}
                             onClick={() => handleEditClick(mekanik._id, mekanik.name, date, {
                               date,
                               start_time: entry?.start_time || workingHours.start,
@@ -318,13 +365,33 @@ const WorkTimeSheet = () => {
                               break_start: entry?.break_start || workingHours.break_start,
                               break_end: entry?.break_end || workingHours.break_end,
                               effective_minutes: effectiveMinutes,
-                              overtime
+                              overtime,
+                              absence_type: absenceType,
+                              leave_hours: leaveHours
                             })}
-                            title={`Click to edit - ${workingHours.start}-${workingHours.end}`}
+                            title={absenceType ? `${absenceType}${leaveHours > 0 ? ` (${leaveHours}h)` : ''}` : `Click to edit - ${workingHours.start}-${workingHours.end}`}
                           >
-                            <div style={{fontWeight: 'bold'}}>{effectiveMinutes}</div>
-                            {overtime > 0 && (
-                              <small style={{color: 'blue'}}>+{overtime}</small>
+                            {absenceType && absenceType !== 'ijin_sebagian' ? (
+                              <small style={{fontWeight: 'bold', textTransform: 'uppercase', fontSize: '9px'}}>
+                                {absenceType === 'sakit' && '🤒'}
+                                {absenceType === 'ijin' && '📝'}
+                                {absenceType === 'cuti' && '🏖'}
+                                {absenceType === 'alpha' && '❌'}
+                                {absenceType === 'lain-lain' && '📌'}
+                                {' '}{absenceType}
+                              </small>
+                            ) : (
+                              <>
+                                <div style={{fontWeight: 'bold'}}>
+                                  {absenceType === 'ijin_sebagian' ? netEffective : effectiveMinutes}
+                                </div>
+                                {overtime > 0 && (
+                                  <small style={{color: 'blue'}}>+{overtime}</small>
+                                )}
+                                {absenceType === 'ijin_sebagian' && leaveHours > 0 && (
+                                  <div><small style={{color: 'green'}}>-{leaveHours}h</small></div>
+                                )}
+                              </>
                             )}
                           </td>
                         );
@@ -435,6 +502,47 @@ const WorkTimeSheet = () => {
                       })}
                     />
                   </div>
+                  <div className="col-md-6">
+                    <label className="form-label">Absence Type</label>
+                    <select
+                      className="form-select"
+                      value={editEntry.entry.absence_type || ''}
+                      onChange={(e) => setEditEntry({
+                        ...editEntry,
+                        entry: {
+                          ...editEntry.entry,
+                          absence_type: e.target.value as AbsenceType,
+                          leave_hours: e.target.value === 'ijin_sebagian' ? editEntry.entry.leave_hours || 0 : 0
+                        }
+                      })}
+                    >
+                      <option value="">No Absence</option>
+                      <option value="sakit">Sakit</option>
+                      <option value="ijin">Ijin (Full Day)</option>
+                      <option value="ijin_sebagian">Ijin Sebagian (Jam Tertentu)</option>
+                      <option value="cuti">Cuti</option>
+                      <option value="alpha">Alpha (Tanpa Keterangan)</option>
+                      <option value="lain-lain">Lain-lain</option>
+                    </select>
+                  </div>
+                  {editEntry.entry.absence_type === 'ijin_sebagian' && (
+                    <div className="col-md-6">
+                      <label className="form-label">Jam Ijin (hours)</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        value={editEntry.entry.leave_hours || 0}
+                        onChange={(e) => setEditEntry({
+                          ...editEntry,
+                          entry: {...editEntry.entry, leave_hours: Number(e.target.value)}
+                        })}
+                        min="0"
+                        max="8"
+                        step="0.5"
+                      />
+                      <small className="text-muted">Jam kerja akan dikurangi sesuai jam ijin</small>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="modal-footer">
