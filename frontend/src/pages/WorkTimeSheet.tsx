@@ -62,10 +62,12 @@ const WorkTimeSheet = () => {
       
       // Map nama_mekanik to name for consistency
       const mekaniks = (data.data || []).map((m: any) => {
-        console.log(`Mekanik: ${m.nama_mekanik} (ID: ${m._id})`);
+        // Clean name - remove extra quotes if any
+        const cleanName = String(m.nama_mekanik || '').trim();
+        console.log(`Mekanik: "${cleanName}" (ID: ${m._id})`);
         return {
           ...m,
-          name: m.nama_mekanik,
+          name: cleanName,
           user_id: m.machine_code
         };
       });
@@ -88,16 +90,16 @@ const WorkTimeSheet = () => {
       
       console.log('=== Work Time Data Response ===');
       console.log('Total sheets:', data.data?.length);
-      console.log('Full response:', data);
       
       // Create mapping from mekanik name to sheet_id
       const idMap: Record<string, string> = {};
       
       // Map backend data to frontend expected format
       const mappedData = (data.data || []).map((sheet: any) => {
-        const name = sheet.personel_name;
+        // Clean name - remove extra quotes if any
+        const name = String(sheet.personel_name || '').trim();
         const id = sheet._id;
-        console.log(`Sheet: ${name} → ${id}`);
+        console.log(`Sheet: "${name}" → ${id}`);
         idMap[name] = id;
         return {
           sheet_id: id,
@@ -109,7 +111,7 @@ const WorkTimeSheet = () => {
       });
       
       console.log('=== Sheet ID Map ===');
-      console.log(idMap);
+      console.log('Map keys:', Object.keys(idMap));
       console.log('Total entries:', Object.keys(idMap).length);
       
       setSheetIdMap(idMap);
@@ -364,14 +366,15 @@ const WorkTimeSheet = () => {
               <tbody>
                 {mekaniks.map((mekanik) => {
                   // Find work time data by matching mekanik name (case-insensitive and trimmed)
-                  const mekanikData = workTimeData.find(w => 
-                    w.mekanik_name?.trim().toLowerCase() === mekanik.name?.trim().toLowerCase()
-                  );
+                  const mekanikName = mekanik.name?.trim().toLowerCase() || '';
+                  const mekanikData = workTimeData.find(w => {
+                    const sheetName = w.mekanik_name?.trim().toLowerCase() || '';
+                    return sheetName === mekanikName;
+                  });
                   let totalMonthly = 0;
 
                   if (!mekanikData) {
-                    console.log(`⚠ No match for: "${mekanik.name}"`);
-                    console.log(`  Available names:`, workTimeData.map(w => `"${w.mekanik_name}"`));
+                    console.log(`⚠ No match for: "${mekanik.name}" (normalized: "${mekanikName}")`);
                   }
 
                   return (
