@@ -91,26 +91,25 @@ const WorkTimeSheet = () => {
       console.log('=== Work Time Data Response ===');
       console.log('Total sheets:', data.data?.length);
       
-      // Create mapping from mekanik name to sheet_id
+      // Create mapping from personel_id to sheet_id
       const idMap: Record<string, string> = {};
       
       // Map backend data to frontend expected format
       const mappedData = (data.data || []).map((sheet: any) => {
-        // Clean name - remove extra quotes if any
-        const name = String(sheet.personel_name || '').trim();
+        const personelId = sheet.personel_id?._id || sheet.personel_id;
         const id = sheet._id;
-        console.log(`Sheet: "${name}" → ${id}`);
-        idMap[name] = id;
+        console.log(`Sheet: ${sheet.personel_name} (ID: ${personelId}) → ${id}`);
+        idMap[personelId] = id;
         return {
           sheet_id: id,
-          mekanik_id: sheet.personel_id?._id || sheet.personel_id,
-          mekanik_name: name,
+          mekanik_id: personelId,
+          mekanik_name: sheet.personel_name,
           daily_entries: sheet.daily_entries || [],
           total_monthly: sheet.total_monthly
         };
       });
       
-      console.log('=== Sheet ID Map ===');
+      console.log('=== Sheet ID Map (by personel_id) ===');
       console.log('Map keys:', Object.keys(idMap));
       console.log('Total entries:', Object.keys(idMap).length);
       
@@ -174,19 +173,19 @@ const WorkTimeSheet = () => {
     }
   };
 
-  const handleEditClick = (mekanik_name: string, mekanik_id: string, date: number, entry: DailyWorkTime) => {
-    const sheet_id = sheetIdMap[mekanik_name] || '';
+  const handleEditClick = (mekanik_id: string, mekanik_name: string, date: number, entry: DailyWorkTime) => {
+    const sheet_id = sheetIdMap[mekanik_id] || '';
     
     // Debug alert
     if (!sheet_id) {
-      alert(`DEBUG: Sheet ID not found for "${mekanik_name}"\n\nAvailable in map:\n${Object.keys(sheetIdMap).join(', ')}`);
+      alert(`DEBUG: Sheet ID not found for mekanik_id "${mekanik_id}" (${mekanik_name})\n\nAvailable IDs in map:\n${Object.keys(sheetIdMap).join(', ')}`);
     }
     
     console.log('=== handleEditClick ===');
+    console.log('Mekanik ID:', mekanik_id);
     console.log('Mekanik Name:', mekanik_name);
     console.log('Sheet ID from map:', sheet_id);
-    console.log('Available in map:', Object.keys(sheetIdMap));
-    console.log('Full entry:', { sheet_id, mekanik_id, mekanik_name, date, entry });
+    console.log('Available IDs in map:', Object.keys(sheetIdMap));
     setEditEntry({ sheet_id, mekanik_id, mekanik_name, date, entry });
     setShowEditModal(true);
   };
@@ -365,16 +364,12 @@ const WorkTimeSheet = () => {
               </thead>
               <tbody>
                 {mekaniks.map((mekanik) => {
-                  // Find work time data by matching mekanik name (case-insensitive and trimmed)
-                  const mekanikName = mekanik.name?.trim().toLowerCase() || '';
-                  const mekanikData = workTimeData.find(w => {
-                    const sheetName = w.mekanik_name?.trim().toLowerCase() || '';
-                    return sheetName === mekanikName;
-                  });
+                  // Find work time data by matching mekanik_id (personel_id)
+                  const mekanikData = workTimeData.find(w => w.mekanik_id === mekanik._id);
                   let totalMonthly = 0;
 
                   if (!mekanikData) {
-                    console.log(`⚠ No match for: "${mekanik.name}" (normalized: "${mekanikName}")`);
+                    console.log(`⚠ No work time sheet for: "${mekanik.name}" (ID: ${mekanik._id})`);
                   }
 
                   return (
@@ -432,7 +427,7 @@ const WorkTimeSheet = () => {
                           <td
                             key={date}
                             style={cellStyle}
-                            onClick={() => handleEditClick(mekanik.name, mekanik._id, date, {
+                            onClick={() => handleEditClick(mekanik._id, mekanik.name, date, {
                               date,
                               start_time: entry?.start_time || workingHours.start,
                               end_time: entry?.end_time || workingHours.end,
