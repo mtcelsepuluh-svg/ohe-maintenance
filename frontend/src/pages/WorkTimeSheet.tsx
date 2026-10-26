@@ -6,6 +6,7 @@ interface Mekanik {
   _id: string;
   name: string;
   user_id: string;
+  machine_code?: string;
 }
 
 interface DailyWorkTime {
@@ -430,7 +431,7 @@ const WorkTimeSheet = () => {
                         }
 
                         // Determine cell background based on absence type
-                        let cellStyle = {cursor: 'pointer', textAlign: 'center' as const};
+                        let cellStyle: React.CSSProperties = {cursor: 'pointer', textAlign: 'center'};
                         if (absenceType === 'sakit') {
                           cellStyle = {...cellStyle, background: '#fff3cd'};
                         } else if (absenceType === 'ijin') {
@@ -449,7 +450,7 @@ const WorkTimeSheet = () => {
                           <td
                             key={date}
                             style={cellStyle}
-                            onClick={() => handleEditClick(mekanik._id, mekanik.name, mekanik.machine_code, date, {
+                            onClick={() => handleEditClick(mekanik._id, mekanik.name, mekanik.machine_code || '', date, {
                               date,
                               start_time: entry?.start_time || workingHours.start,
                               end_time: entry?.end_time || workingHours.end,
