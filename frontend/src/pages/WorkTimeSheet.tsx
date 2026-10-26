@@ -81,9 +81,13 @@ const WorkTimeSheet = () => {
     setLoading(true);
     try {
       // Add timestamp to prevent caching
-      const timestamp = new Date().getTime();
-      const response = await fetch(`/api/worktime/${selectedYear}/${selectedMonth}?_t=${timestamp}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      const timestamp = Date.now();
+      const response = await fetch(`/api/worktime/${selectedYear}/${selectedMonth}?_t=${timestamp}&_v=2`, {
+        headers: { 
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        },
         cache: 'no-store'
       });
       const data = await response.json();
