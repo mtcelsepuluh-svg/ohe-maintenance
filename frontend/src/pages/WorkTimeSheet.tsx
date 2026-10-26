@@ -424,8 +424,22 @@ const WorkTimeSheet = () => {
 
                         if (isSunday) {
                           return (
-                            <td key={date} style={{background: '#f5f5f5', textAlign: 'center'}}>
+                            <td key={date} style={{background: overtime > 0 ? '#fff3cd' : '#f5f5f5', textAlign: 'center', cursor: 'pointer'}}
+                                onClick={() => handleEditClick(mekanik._id, mekanik.name, mekanik.machine_code || '', date, {
+                                  date,
+                                  start_time: entry?.start_time || workingHours.start,
+                                  end_time: entry?.end_time || workingHours.end,
+                                  break_start: entry?.break_start || workingHours.break_start,
+                                  break_end: entry?.break_end || workingHours.break_end,
+                                  effective_minutes: effectiveMinutes,
+                                  overtime,
+                                  absence_type: absenceType,
+                                  leave_hours: leaveHours
+                                })}>
                               <small style={{color: '#999'}}>OFF</small>
+                              {overtime > 0 && (
+                                <div><small style={{color: 'blue', fontWeight: 'bold'}}>+{overtime}</small></div>
+                              )}
                             </td>
                           );
                         }
