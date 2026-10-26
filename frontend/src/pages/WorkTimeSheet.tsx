@@ -247,8 +247,7 @@ const WorkTimeSheet = () => {
       if (result.success) {
         setShowEditModal(false);
         setEditEntry(null);
-        await loadWorkTimeData();
-        alert('Work time updated successfully!');
+        alert('Work time updated successfully! Please refresh the page to see the updated data.');
       } else {
         alert('Failed to update: ' + result.message);
       }
