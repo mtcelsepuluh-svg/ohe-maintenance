@@ -160,7 +160,20 @@ const WorkTimeSheet = () => {
     if (!editEntry) return;
 
     try {
-      const url = `/api/worktime/${editEntry.sheet_id}/day/${editEntry.date}`;
+      // If sheet_id is empty, try to find it from workTimeData
+      let sheetId = editEntry.sheet_id;
+      if (!sheetId) {
+        const data = workTimeData.find(w => w.mekanik_id === editEntry.mekanik_id);
+        sheetId = data?.sheet_id;
+        console.log('Trying to find sheet_id from workTimeData:', sheetId);
+      }
+
+      if (!sheetId) {
+        alert('Error: Work time sheet not found. Please refresh the page and try again.');
+        return;
+      }
+
+      const url = `/api/worktime/${sheetId}/day/${editEntry.date}`;
       console.log('Saving to URL:', url);
       console.log('Data:', editEntry);
       
