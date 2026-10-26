@@ -44,6 +44,7 @@ const WorkTimeSheet = () => {
     date: number;
     entry: DailyWorkTime;
   } | null>(null);
+  const [sheetIdMap, setSheetIdMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadMekaniks();
@@ -78,9 +79,13 @@ const WorkTimeSheet = () => {
       
       console.log('Backend response:', data);
       
+      // Create mapping from mekanik name to sheet_id
+      const idMap: Record<string, string> = {};
+      
       // Map backend data to frontend expected format
       const mappedData = (data.data || []).map((sheet: any) => {
         console.log('Sheet:', sheet._id, sheet.personel_name);
+        idMap[sheet.personel_name] = sheet._id;
         return {
           sheet_id: sheet._id,
           mekanik_id: sheet.personel_id?._id || sheet.personel_id,
@@ -90,6 +95,8 @@ const WorkTimeSheet = () => {
         };
       });
       
+      console.log('Sheet ID Map:', idMap);
+      setSheetIdMap(idMap);
       console.log('Mapped data:', mappedData);
       setWorkTimeData(mappedData);
     } catch (error) {
@@ -150,8 +157,10 @@ const WorkTimeSheet = () => {
     }
   };
 
-  const handleEditClick = (sheet_id: string, mekanik_id: string, mekanik_name: string, date: number, entry: DailyWorkTime) => {
+  const handleEditClick = (mekanik_name: string, mekanik_id: string, date: number, entry: DailyWorkTime) => {
+    const sheet_id = sheetIdMap[mekanik_name] || '';
     console.log('handleEditClick called with:', { sheet_id, mekanik_id, mekanik_name, date, entry });
+    console.log('sheetIdMap:', sheetIdMap);
     setEditEntry({ sheet_id, mekanik_id, mekanik_name, date, entry });
     setShowEditModal(true);
   };
@@ -160,13 +169,7 @@ const WorkTimeSheet = () => {
     if (!editEntry) return;
 
     try {
-      // If sheet_id is empty, try to find it from workTimeData
-      let sheetId = editEntry.sheet_id;
-      if (!sheetId) {
-        const data = workTimeData.find(w => w.mekanik_id === editEntry.mekanik_id);
-        sheetId = data?.sheet_id;
-        console.log('Trying to find sheet_id from workTimeData:', sheetId);
-      }
+      const sheetId = editEntry.sheet_id;
 
       if (!sheetId) {
         alert('Error: Work time sheet not found. Please refresh the page and try again.');
@@ -397,7 +400,7 @@ const WorkTimeSheet = () => {
                           <td
                             key={date}
                             style={cellStyle}
-                            onClick={() => handleEditClick(mekanikData?.sheet_id || '', mekanik._id, mekanik.name, date, {
+                            onClick={() => handleEditClick(mekanik.name, mekanik._id, date, {
                               date,
                               start_time: entry?.start_time || workingHours.start,
                               end_time: entry?.end_time || workingHours.end,
