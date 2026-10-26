@@ -57,12 +57,18 @@ const WorkTimeSheet = () => {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       const data = await response.json();
+      console.log('=== Mekaniks Response ===');
+      console.log('Total mekaniks:', data.data?.length);
+      
       // Map nama_mekanik to name for consistency
-      const mekaniks = (data.data || []).map((m: any) => ({
-        ...m,
-        name: m.nama_mekanik,
-        user_id: m.machine_code
-      }));
+      const mekaniks = (data.data || []).map((m: any) => {
+        console.log(`Mekanik: ${m.nama_mekanik} (ID: ${m._id})`);
+        return {
+          ...m,
+          name: m.nama_mekanik,
+          user_id: m.machine_code
+        };
+      });
       setMekaniks(mekaniks);
     } catch (error) {
       console.error('Failed to load mekaniks:', error);
@@ -77,27 +83,32 @@ const WorkTimeSheet = () => {
       });
       const data = await response.json();
       
-      console.log('Backend response:', data);
+      console.log('=== Work Time Data Response ===');
+      console.log('Total sheets:', data.data?.length);
       
       // Create mapping from mekanik name to sheet_id
       const idMap: Record<string, string> = {};
       
       // Map backend data to frontend expected format
       const mappedData = (data.data || []).map((sheet: any) => {
-        console.log('Sheet:', sheet._id, sheet.personel_name);
-        idMap[sheet.personel_name] = sheet._id;
+        const name = sheet.personel_name;
+        const id = sheet._id;
+        console.log(`Sheet: ${name} → ${id}`);
+        idMap[name] = id;
         return {
-          sheet_id: sheet._id,
+          sheet_id: id,
           mekanik_id: sheet.personel_id?._id || sheet.personel_id,
-          mekanik_name: sheet.personel_name,
+          mekanik_name: name,
           daily_entries: sheet.daily_entries || [],
           total_monthly: sheet.total_monthly
         };
       });
       
-      console.log('Sheet ID Map:', idMap);
+      console.log('=== Sheet ID Map ===');
+      console.log(idMap);
+      console.log('Total entries:', Object.keys(idMap).length);
+      
       setSheetIdMap(idMap);
-      console.log('Mapped data:', mappedData);
       setWorkTimeData(mappedData);
     } catch (error) {
       console.error('Failed to load work time data:', error);
@@ -159,8 +170,11 @@ const WorkTimeSheet = () => {
 
   const handleEditClick = (mekanik_name: string, mekanik_id: string, date: number, entry: DailyWorkTime) => {
     const sheet_id = sheetIdMap[mekanik_name] || '';
-    console.log('handleEditClick called with:', { sheet_id, mekanik_id, mekanik_name, date, entry });
-    console.log('sheetIdMap:', sheetIdMap);
+    console.log('=== handleEditClick ===');
+    console.log('Mekanik Name:', mekanik_name);
+    console.log('Sheet ID from map:', sheet_id);
+    console.log('Available in map:', Object.keys(sheetIdMap));
+    console.log('Full entry:', { sheet_id, mekanik_id, mekanik_name, date, entry });
     setEditEntry({ sheet_id, mekanik_id, mekanik_name, date, entry });
     setShowEditModal(true);
   };
