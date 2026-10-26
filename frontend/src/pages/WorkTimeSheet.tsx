@@ -91,25 +91,32 @@ const WorkTimeSheet = () => {
       console.log('=== Work Time Data Response ===');
       console.log('Total sheets:', data.data?.length);
       
-      // Create mapping from personel_id to sheet_id
+      // Create mapping from user_id (normalized) to sheet_id
       const idMap: Record<string, string> = {};
       
       // Map backend data to frontend expected format
       const mappedData = (data.data || []).map((sheet: any) => {
         const personelId = sheet.personel_id?._id || sheet.personel_id;
+        const userId = sheet.personel_id?.user_id || '';
         const id = sheet._id;
-        console.log(`Sheet: ${sheet.personel_name} (ID: ${personelId}) → ${id}`);
-        idMap[personelId] = id;
+        
+        // Normalize user_id by removing dashes
+        const normalizedUserId = userId.replace(/-/g, '').toUpperCase();
+        
+        console.log(`Sheet: ${sheet.personel_name} (user_id: ${userId}, normalized: ${normalizedUserId}) → ${id}`);
+        idMap[normalizedUserId] = id;
+        
         return {
           sheet_id: id,
           mekanik_id: personelId,
           mekanik_name: sheet.personel_name,
+          user_id: userId,
           daily_entries: sheet.daily_entries || [],
           total_monthly: sheet.total_monthly
         };
       });
       
-      console.log('=== Sheet ID Map (by personel_id) ===');
+      console.log('=== Sheet ID Map (by normalized user_id) ===');
       console.log('Map keys:', Object.keys(idMap));
       console.log('Total entries:', Object.keys(idMap).length);
       
@@ -173,19 +180,21 @@ const WorkTimeSheet = () => {
     }
   };
 
-  const handleEditClick = (mekanik_id: string, mekanik_name: string, date: number, entry: DailyWorkTime) => {
-    const sheet_id = sheetIdMap[mekanik_id] || '';
+  const handleEditClick = (mekanik_id: string, mekanik_name: string, machine_code: string, date: number, entry: DailyWorkTime) => {
+    // Normalize machine_code by removing dashes
+    const normalizedCode = machine_code.replace(/-/g, '').toUpperCase();
+    const sheet_id = sheetIdMap[normalizedCode] || '';
     
     // Debug alert
     if (!sheet_id) {
-      alert(`DEBUG: Sheet ID not found for mekanik_id "${mekanik_id}" (${mekanik_name})\n\nAvailable IDs in map:\n${Object.keys(sheetIdMap).join(', ')}`);
+      alert(`DEBUG: Sheet ID not found for "${mekanik_name}"\nMachine code: ${machine_code} (normalized: ${normalizedCode})\n\nAvailable codes in map:\n${Object.keys(sheetIdMap).join(', ')}`);
     }
     
     console.log('=== handleEditClick ===');
-    console.log('Mekanik ID:', mekanik_id);
-    console.log('Mekanik Name:', mekanik_name);
+    console.log('Mekanik:', mekanik_name);
+    console.log('Machine code:', machine_code, '(normalized:', normalizedCode + ')');
     console.log('Sheet ID from map:', sheet_id);
-    console.log('Available IDs in map:', Object.keys(sheetIdMap));
+    console.log('Available codes in map:', Object.keys(sheetIdMap));
     setEditEntry({ sheet_id, mekanik_id, mekanik_name, date, entry });
     setShowEditModal(true);
   };
@@ -427,7 +436,7 @@ const WorkTimeSheet = () => {
                           <td
                             key={date}
                             style={cellStyle}
-                            onClick={() => handleEditClick(mekanik._id, mekanik.name, date, {
+                            onClick={() => handleEditClick(mekanik._id, mekanik.name, mekanik.machine_code, date, {
                               date,
                               start_time: entry?.start_time || workingHours.start,
                               end_time: entry?.end_time || workingHours.end,
