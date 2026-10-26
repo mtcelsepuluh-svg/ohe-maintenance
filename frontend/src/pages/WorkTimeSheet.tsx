@@ -353,11 +353,16 @@ const WorkTimeSheet = () => {
               </thead>
               <tbody>
                 {mekaniks.map((mekanik) => {
-                  // Find work time data by matching mekanik name
-                  const mekanikData = workTimeData.find(w => w.mekanik_name === mekanik.name);
+                  // Find work time data by matching mekanik name (case-insensitive and trimmed)
+                  const mekanikData = workTimeData.find(w => 
+                    w.mekanik_name?.trim().toLowerCase() === mekanik.name?.trim().toLowerCase()
+                  );
                   let totalMonthly = 0;
 
-                  console.log(`Mekanik: ${mekanik.name}, Found data:`, mekanikData ? 'Yes' : 'No', 'Sheet ID:', mekanikData?.sheet_id);
+                  if (!mekanikData) {
+                    console.log(`⚠ No match for: "${mekanik.name}"`);
+                    console.log(`  Available names:`, workTimeData.map(w => `"${w.mekanik_name}"`));
+                  }
 
                   return (
                     <tr key={mekanik._id}>
