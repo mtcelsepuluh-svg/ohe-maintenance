@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns';
 import { id } from 'date-fns/locale';
 
@@ -45,20 +45,15 @@ const WorkTimeSheet = () => {
     entry: DailyWorkTime;
   } | null>(null);
   const [sheetIdMap, setSheetIdMap] = useState<Record<string, string>>({});
-  const [hasLoaded, setHasLoaded] = useState(false);
-
-  useEffect(() => {
-    // Reset hasLoaded when month/year changes
-    setHasLoaded(false);
-  }, [selectedMonth, selectedYear]);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
     loadMekaniks();
-    if (!hasLoaded) {
+    if (!hasLoadedRef.current) {
       loadWorkTimeData();
-      setHasLoaded(true);
+      hasLoadedRef.current = true;
     }
-  }, [selectedMonth, selectedYear, hasLoaded]);
+  }, [selectedMonth, selectedYear]);
 
   const loadMekaniks = async () => {
     try {
