@@ -7,6 +7,7 @@ import Activities from './pages/Activities';
 import InputOHE from './pages/InputOHE';
 import Reports from './pages/Reports';
 import WorkTimeSheetPage from './pages/WorkTimeSheet';
+import MekanikManagement from './pages/MekanikManagement';
 import { authService } from './services/authService';
 
 function App() {
@@ -59,6 +60,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <WorkTimeSheetPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mekaniks"
+              element={
+                <ProtectedRoute>
+                  <MekanikManagement />
                 </ProtectedRoute>
               }
             />
