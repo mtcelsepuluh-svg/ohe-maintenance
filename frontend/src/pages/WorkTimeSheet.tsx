@@ -78,13 +78,17 @@ const WorkTimeSheet = () => {
   const loadWorkTimeData = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/worktime/${selectedYear}/${selectedMonth}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      // Add timestamp to prevent caching
+      const timestamp = new Date().getTime();
+      const response = await fetch(`/api/worktime/${selectedYear}/${selectedMonth}?_t=${timestamp}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        cache: 'no-store'
       });
       const data = await response.json();
       
       console.log('=== Work Time Data Response ===');
       console.log('Total sheets:', data.data?.length);
+      console.log('Full response:', data);
       
       // Create mapping from mekanik name to sheet_id
       const idMap: Record<string, string> = {};
