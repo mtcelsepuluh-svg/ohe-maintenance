@@ -70,11 +70,20 @@ const WorkTimeSheet = () => {
   const loadWorkTimeData = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/worktimes?month=${selectedMonth}&year=${selectedYear}`, {
+      const response = await fetch(`/api/worktime/${selectedYear}/${selectedMonth}`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       const data = await response.json();
-      setWorkTimeData(data.data || []);
+      
+      // Map backend data to frontend expected format
+      const mappedData = (data.data || []).map((sheet: any) => ({
+        mekanik_id: sheet.personel_id?._id || sheet.personel_id,
+        mekanik_name: sheet.personel_name,
+        daily_entries: sheet.daily_entries || [],
+        total_monthly: sheet.total_monthly
+      }));
+      
+      setWorkTimeData(mappedData);
     } catch (error) {
       console.error('Failed to load work time data:', error);
     } finally {
@@ -142,7 +151,7 @@ const WorkTimeSheet = () => {
     if (!editEntry) return;
 
     try {
-      const response = await fetch(`/api/worktimes/${editEntry.mekanik_id}`, {
+      const response = await fetch(`/api/worktime/${editEntry.mekanik_id}/day/${editEntry.date}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -162,7 +171,7 @@ const WorkTimeSheet = () => {
       });
 
       const result = await response.json();
-      
+
       if (result.success) {
         setShowEditModal(false);
         setEditEntry(null);
