@@ -174,6 +174,12 @@ const WorkTimeSheet = () => {
 
   const handleEditClick = (mekanik_name: string, mekanik_id: string, date: number, entry: DailyWorkTime) => {
     const sheet_id = sheetIdMap[mekanik_name] || '';
+    
+    // Debug alert
+    if (!sheet_id) {
+      alert(`DEBUG: Sheet ID not found for "${mekanik_name}"\n\nAvailable in map:\n${Object.keys(sheetIdMap).join(', ')}`);
+    }
+    
     console.log('=== handleEditClick ===');
     console.log('Mekanik Name:', mekanik_name);
     console.log('Sheet ID from map:', sheet_id);
