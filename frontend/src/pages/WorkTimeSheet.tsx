@@ -45,11 +45,20 @@ const WorkTimeSheet = () => {
     entry: DailyWorkTime;
   } | null>(null);
   const [sheetIdMap, setSheetIdMap] = useState<Record<string, string>>({});
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  useEffect(() => {
+    // Reset hasLoaded when month/year changes
+    setHasLoaded(false);
+  }, [selectedMonth, selectedYear]);
 
   useEffect(() => {
     loadMekaniks();
-    loadWorkTimeData();
-  }, [selectedMonth, selectedYear]);
+    if (!hasLoaded) {
+      loadWorkTimeData();
+      setHasLoaded(true);
+    }
+  }, [selectedMonth, selectedYear, hasLoaded]);
 
   const loadMekaniks = async () => {
     try {
