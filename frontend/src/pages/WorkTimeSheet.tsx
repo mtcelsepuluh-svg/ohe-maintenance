@@ -153,7 +153,11 @@ const WorkTimeSheet = () => {
     if (!editEntry) return;
 
     try {
-      const response = await fetch(`/api/worktime/${editEntry.sheet_id}/day/${editEntry.date}`, {
+      const url = `/api/worktime/${editEntry.sheet_id}/day/${editEntry.date}`;
+      console.log('Saving to URL:', url);
+      console.log('Data:', editEntry);
+      
+      const response = await fetch(url, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -173,6 +177,7 @@ const WorkTimeSheet = () => {
       });
 
       const result = await response.json();
+      console.log('Response:', result);
 
       if (result.success) {
         setShowEditModal(false);
