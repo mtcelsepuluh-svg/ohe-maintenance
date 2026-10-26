@@ -76,15 +76,21 @@ const WorkTimeSheet = () => {
       });
       const data = await response.json();
       
-      // Map backend data to frontend expected format
-      const mappedData = (data.data || []).map((sheet: any) => ({
-        sheet_id: sheet._id,
-        mekanik_id: sheet.personel_id?._id || sheet.personel_id,
-        mekanik_name: sheet.personel_name,
-        daily_entries: sheet.daily_entries || [],
-        total_monthly: sheet.total_monthly
-      }));
+      console.log('Backend response:', data);
       
+      // Map backend data to frontend expected format
+      const mappedData = (data.data || []).map((sheet: any) => {
+        console.log('Sheet:', sheet._id, sheet.personel_name);
+        return {
+          sheet_id: sheet._id,
+          mekanik_id: sheet.personel_id?._id || sheet.personel_id,
+          mekanik_name: sheet.personel_name,
+          daily_entries: sheet.daily_entries || [],
+          total_monthly: sheet.total_monthly
+        };
+      });
+      
+      console.log('Mapped data:', mappedData);
       setWorkTimeData(mappedData);
     } catch (error) {
       console.error('Failed to load work time data:', error);
@@ -145,6 +151,7 @@ const WorkTimeSheet = () => {
   };
 
   const handleEditClick = (sheet_id: string, mekanik_id: string, mekanik_name: string, date: number, entry: DailyWorkTime) => {
+    console.log('handleEditClick called with:', { sheet_id, mekanik_id, mekanik_name, date, entry });
     setEditEntry({ sheet_id, mekanik_id, mekanik_name, date, entry });
     setShowEditModal(true);
   };
@@ -316,8 +323,11 @@ const WorkTimeSheet = () => {
               </thead>
               <tbody>
                 {mekaniks.map((mekanik) => {
-                  const mekanikData = workTimeData.find(w => w.mekanik_id === mekanik._id);
+                  // Find work time data by matching mekanik name
+                  const mekanikData = workTimeData.find(w => w.mekanik_name === mekanik.name);
                   let totalMonthly = 0;
+
+                  console.log(`Mekanik: ${mekanik.name}, Found data:`, mekanikData ? 'Yes' : 'No', 'Sheet ID:', mekanikData?.sheet_id);
 
                   return (
                     <tr key={mekanik._id}>
