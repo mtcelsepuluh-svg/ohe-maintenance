@@ -406,6 +406,11 @@ const WorkTimeSheet = () => {
                         const absenceType = entry?.absence_type;
                         const leaveHours = entry?.leave_hours || 0;
 
+                        // Debug log for overtime
+                        if (overtime > 0) {
+                          console.log(`Cell ${mekanik.name} day ${date}:`, { effectiveMinutes, overtime, absenceType, leaveHours, entry });
+                        }
+
                         // Calculate net effective minutes based on absence type
                         let netEffective = effectiveMinutes;
                         if (absenceType === 'sakit' || absenceType === 'ijin' || absenceType === 'cuti' || absenceType === 'alpha') {
