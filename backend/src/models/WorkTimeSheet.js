@@ -188,33 +188,39 @@ workTimeSheetSchema.methods.updateDailyEntry = function(date, updates) {
     throw new Error(`Entry for date ${date} not found`);
   }
 
-  Object.assign(entry, updates);
-
-  // Handle absence types
-  if (entry.absence_type === 'sakit' || entry.absence_type === 'ijin' || 
-      entry.absence_type === 'cuti' || entry.absence_type === 'alpha') {
-    entry.status = 'absence';
-    entry.total_time = 0;
-  } else if (entry.absence_type === 'ijin_sebagian') {
-    entry.status = 'present';
-    const leaveMinutes = (entry.leave_hours || 0) * 60;
-    entry.total_time = Math.max(0, entry.standard_time + entry.overtime - leaveMinutes);
+  // If total_time is explicitly provided in updates, use it directly
+  if (updates.total_time !== undefined) {
+    Object.assign(entry, updates);
   } else {
-    entry.status = 'present';
-    entry.total_time = entry.standard_time + entry.overtime;
+    // Otherwise, use the old behavior of calculating from standard_time + overtime
+    Object.assign(entry, updates);
+    
+    // Handle absence types
+    if (entry.absence_type === 'sakit' || entry.absence_type === 'ijin' ||
+        entry.absence_type === 'cuti' || entry.absence_type === 'alpha') {
+      entry.status = 'absence';
+      entry.total_time = 0;
+    } else if (entry.absence_type === 'ijin_sebagian') {
+      entry.status = 'present';
+      const leaveMinutes = (entry.leave_hours || 0) * 60;
+      entry.total_time = Math.max(0, entry.standard_time + entry.overtime - leaveMinutes);
+    } else {
+      entry.status = 'present';
+      entry.total_time = entry.standard_time + entry.overtime;
+    }
   }
 
   // Recalculate total_monthly
   this.total_monthly = this.daily_entries.reduce((sum, e) => {
     let effectiveTime = e.total_time || 0;
-    
-    if (e.absence_type === 'sakit' || e.absence_type === 'ijin' || 
+
+    if (e.absence_type === 'sakit' || e.absence_type === 'ijin' ||
         e.absence_type === 'cuti' || e.absence_type === 'alpha') {
       effectiveTime = 0;
     } else if (e.absence_type === 'ijin_sebagian' && e.leave_hours > 0) {
       effectiveTime = Math.max(0, effectiveTime - (e.leave_hours * 60));
     }
-    
+
     return sum + effectiveTime;
   }, 0);
 

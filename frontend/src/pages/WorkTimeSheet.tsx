@@ -15,7 +15,10 @@ interface DailyWorkTime {
   end_time: string;
   break_start: string;
   break_end: string;
+  // Worked minutes excluding overtime. Backend stores this as total_time - overtime.
   effective_minutes: number;
+  // Backend's seeded baseline for this weekday; used for the +/- change indicator.
+  standard_time: number;
   overtime: number;
   absence?: string;
   absence_type?: 'sakit' | 'ijin' | 'cuti' | 'alpha' | 'ijin_sebagian' | 'lain-lain';
@@ -24,7 +27,26 @@ interface DailyWorkTime {
 
 type AbsenceType = 'sakit' | 'ijin' | 'cuti' | 'alpha' | 'ijin_sebagian' | 'lain-lain';
 
+const FULL_DAY_ABSENCES: AbsenceType[] = ['sakit', 'ijin', 'cuti', 'alpha'];
+
+// Step for the inline +/- controls. The edit modal still allows single-minute
+// changes and direct typing for finer adjustment.
+const INLINE_STEP = 10;
+const INLINE_LEAVE_STEP = 1;
+const MAX_LEAVE_HOURS = 8;
+
+const ABSENCE_OPTIONS: { value: AbsenceType | ''; label: string }[] = [
+  { value: '', label: '–' },
+  { value: 'sakit', label: 'Sakit' },
+  { value: 'ijin', label: 'Ijin' },
+  { value: 'ijin_sebagian', label: 'Ijin Seb' },
+  { value: 'cuti', label: 'Cuti' },
+  { value: 'alpha', label: 'Alpha' },
+  { value: 'lain-lain', label: 'Lain' }
+];
+
 interface MekanikWorkTime {
+  sheet_id: string;
   mekanik_id: string;
   mekanik_name: string;
   daily_entries: DailyWorkTime[];
@@ -46,13 +68,26 @@ const WorkTimeSheet = () => {
     entry: DailyWorkTime;
   } | null>(null);
   const [sheetIdMap, setSheetIdMap] = useState<Record<string, string>>({});
-  const hasLoadedRef = useRef(false);
+  // Inline editing: only the hovered cell renders its +/- toolbar, so 700+
+  // cells don't each carry a pile of hidden buttons.
+  const [hoveredCell, setHoveredCell] = useState<string | null>(null);
+  const [cellStatus, setCellStatus] = useState<Record<string, 'saving' | 'saved' | 'error'>>({});
+  // Tracks the period already fetched so Strict Mode's double effect is skipped,
+  // while a real month/year change still triggers a reload.
+  const loadedPeriodRef = useRef<string>('');
+  // Per-cell request sequence so an out-of-order response from a slower PUT
+  // can't overwrite the status of a newer edit.
+  const saveSeqRef = useRef<Record<string, number>>({});
+  // Latest inline-edited value per cell. Rapid clicks can land before React
+  // re-renders, making the render-time `cellEntry` stale; see applyInlineChange.
+  const pendingEntryRef = useRef<Record<string, DailyWorkTime>>({});
 
   useEffect(() => {
     loadMekaniks();
-    if (!hasLoadedRef.current) {
+    const period = `${selectedYear}-${selectedMonth}`;
+    if (loadedPeriodRef.current !== period) {
+      loadedPeriodRef.current = period;
       loadWorkTimeData();
-      hasLoadedRef.current = true;
     }
   }, [selectedMonth, selectedYear]);
 
@@ -108,19 +143,32 @@ const WorkTimeSheet = () => {
         const personelId = sheet.personel_id?._id || sheet.personel_id;
         const userId = sheet.personel_id?.user_id || '';
         const id = sheet._id;
-        
+
         // Normalize user_id by removing dashes
         const normalizedUserId = userId.replace(/-/g, '').toUpperCase();
-        
+
         console.log(`Sheet: ${sheet.personel_name} (user_id: ${userId}, normalized: ${normalizedUserId}) → ${id}`);
         idMap[normalizedUserId] = id;
-        
+
+        // Backend stores total_time = worked minutes INCLUDING overtime.
+        // The UI edits them separately, so split overtime back out here.
+        const dailyEntries = (sheet.daily_entries || []).map((entry: any) => {
+          const overtime = entry.overtime || 0;
+          const totalTime = entry.total_time ?? entry.standard_time ?? 0;
+          return {
+            ...entry,
+            overtime,
+            standard_time: entry.standard_time ?? 0,
+            effective_minutes: Math.max(0, totalTime - overtime)
+          };
+        });
+
         return {
           sheet_id: id,
           mekanik_id: personelId,
           mekanik_name: sheet.personel_name,
           user_id: userId,
-          daily_entries: sheet.daily_entries || [],
+          daily_entries: dailyEntries,
           total_monthly: sheet.total_monthly
         };
       });
@@ -129,6 +177,10 @@ const WorkTimeSheet = () => {
       console.log('Map keys:', Object.keys(idMap));
       console.log('Total entries:', Object.keys(idMap).length);
       
+      // Fresh server data supersedes any accumulated inline edits.
+      pendingEntryRef.current = {};
+      saveSeqRef.current = {};
+      setCellStatus({});
       setSheetIdMap(idMap);
       setWorkTimeData(mappedData);
     } catch (error) {
@@ -193,23 +245,255 @@ const WorkTimeSheet = () => {
     // Normalize machine_code by removing dashes
     const normalizedCode = machine_code.replace(/-/g, '').toUpperCase();
     const sheet_id = sheetIdMap[normalizedCode] || '';
-    
-    // Debug alert
-    if (!sheet_id) {
-      alert(`DEBUG: Sheet ID not found for "${mekanik_name}"\nMachine code: ${machine_code} (normalized: ${normalizedCode})\n\nAvailable codes in map:\n${Object.keys(sheetIdMap).join(', ')}`);
-    }
-    
-    console.log('=== handleEditClick ===');
-    console.log('Mekanik:', mekanik_name);
-    console.log('Machine code:', machine_code, '(normalized:', normalizedCode + ')');
-    console.log('Sheet ID from map:', sheet_id);
-    console.log('Available codes in map:', Object.keys(sheetIdMap));
+
     setEditEntry({ sheet_id, mekanik_id, mekanik_name, date, entry });
     setShowEditModal(true);
   };
 
+  // Functional updater so rapid +/- clicks can't drop an edit.
+  const adjustEntry = (patch: Partial<DailyWorkTime>) => {
+    setEditEntry(prev => (prev ? { ...prev, entry: { ...prev.entry, ...patch } } : prev));
+  };
+
+  // Delta form for the modal's +/- buttons. The arithmetic happens inside the
+  // updater, so it can never be computed from a stale `editEntry` closure.
+  const adjustEntryBy = (field: 'effective_minutes' | 'overtime', delta: number) => {
+    setEditEntry(prev => (prev
+      ? { ...prev, entry: { ...prev.entry, [field]: Math.max(0, prev.entry[field] + delta) } }
+      : prev));
+  };
+
+  const sheetIdFor = (mekanik: Mekanik) =>
+    sheetIdMap[(mekanik.machine_code || '').replace(/-/g, '').toUpperCase()] || '';
+
+  // Optimistic local update, deliberately without a refetch afterwards: the
+  // Vite dev proxy can serve a stale sheet list, which would drop rows.
+  // Keyed on sheet_id for the same reason as the row join above.
+  const patchLocalEntry = (
+    sheetId: string,
+    date: number,
+    current: DailyWorkTime,
+    patch: Partial<DailyWorkTime>
+  ) => {
+    setWorkTimeData(prev => prev.map(sheet => {
+      if (sheet.sheet_id !== sheetId) return sheet;
+      const hasEntry = sheet.daily_entries.some(e => e.date === date);
+      return {
+        ...sheet,
+        daily_entries: hasEntry
+          ? sheet.daily_entries.map(e => (e.date === date ? { ...e, ...patch } : e))
+          : [...sheet.daily_entries, { ...current, ...patch }]
+      };
+    }));
+  };
+
+  const saveDay = async (sheetId: string, date: number, next: DailyWorkTime) => {
+    const key = `${sheetId}:${date}`;
+    const seq = (saveSeqRef.current[key] || 0) + 1;
+    saveSeqRef.current[key] = seq;
+    setCellStatus(prev => ({ ...prev, [key]: 'saving' }));
+
+    // Same contract as the modal: backend total_time INCLUDES overtime.
+    const payload = {
+      date,
+      total_time: next.effective_minutes + next.overtime,
+      overtime: next.overtime,
+      absence_type: next.absence_type ?? null,
+      leave_hours: next.leave_hours || 0
+    };
+
+    try {
+      const response = await fetch(`/api/worktime/${sheetId}/day/${date}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
+      if (saveSeqRef.current[key] !== seq) return;
+      if (result.success) {
+        setCellStatus(prev => ({ ...prev, [key]: 'saved' }));
+      } else {
+        setCellStatus(prev => ({ ...prev, [key]: 'error' }));
+        alert('Failed to update: ' + result.message);
+      }
+    } catch (error) {
+      if (saveSeqRef.current[key] !== seq) return;
+      setCellStatus(prev => ({ ...prev, [key]: 'error' }));
+      alert('Failed to update work time: ' + (error instanceof Error ? error.message : String(error)));
+    }
+  };
+
+  // `computePatch` receives the accumulated base value, not the render-time
+  // snapshot, so consecutive rapid clicks all count instead of collapsing.
+  const applyInlineChange = (
+    mekanik: Mekanik,
+    date: number,
+    current: DailyWorkTime,
+    computePatch: (base: DailyWorkTime) => Partial<DailyWorkTime>
+  ) => {
+    const sheetId = sheetIdFor(mekanik);
+    if (!sheetId) {
+      alert('Error: Work time sheet not found. Please refresh the page and try again.');
+      return;
+    }
+    const cellKey = `${mekanik._id}:${date}`;
+    const base = pendingEntryRef.current[cellKey] ?? current;
+    const patch = computePatch(base);
+    const next = { ...base, ...patch };
+    pendingEntryRef.current[cellKey] = next;
+
+    patchLocalEntry(sheetId, date, base, patch);
+    saveDay(sheetId, date, next);
+  };
+
+  const applyInlineAbsence = (
+    mekanik: Mekanik,
+    date: number,
+    current: DailyWorkTime,
+    value: AbsenceType | ''
+  ) => {
+    applyInlineChange(mekanik, date, current, (base) => ({
+      absence_type: value === '' ? undefined : value,
+      leave_hours: value === 'ijin_sebagian' ? (base.leave_hours || 0) : 0
+    }));
+  };
+
+  const applyInlineReset = (mekanik: Mekanik, date: number, current: DailyWorkTime) => {
+    applyInlineChange(mekanik, date, current, (base) => ({
+      effective_minutes: base.standard_time,
+      overtime: 0,
+      absence_type: undefined,
+      leave_hours: 0
+    }));
+  };
+
+  const renderStatusBadge = (
+    status: 'saving' | 'saved' | 'error' | undefined,
+    isHovered: boolean
+  ) => {
+    if (!status) return null;
+    // Errors stay pinned; saving/saved only show while hovering so the grid
+    // isn't permanently speckled with badges.
+    if (status !== 'error' && !isHovered) return null;
+    const label = status === 'saving' ? '...' : status === 'saved' ? 'saved' : 'gagal';
+    const color = status === 'error' ? '#dc3545' : status === 'saving' ? '#6c757d' : '#198754';
+    return (
+      <div style={{ fontSize: '8px', fontWeight: 'bold', color, lineHeight: '9px' }}>
+        {label}
+      </div>
+    );
+  };
+
+  const renderInlineControls = (
+    mekanik: Mekanik,
+    date: number,
+    cellKey: string,
+    v: DailyWorkTime,
+    flipUp: boolean
+  ) => {
+    if (hoveredCell !== cellKey) return null;
+
+    const btnStyle = (color: string): React.CSSProperties => ({
+      fontSize: '9px',
+      lineHeight: '12px',
+      padding: '0 2px',
+      border: `1px solid ${color}`,
+      background: 'white',
+      color,
+      borderRadius: '2px',
+      cursor: 'pointer',
+      fontWeight: 'bold'
+    });
+
+    const stepBtn = (label: string, color: string, title: string, onClick: () => void) => (
+      <button
+        type="button"
+        title={title}
+        style={btnStyle(color)}
+        onClick={(e) => { e.stopPropagation(); onClick(); }}
+      >
+        {label}
+      </button>
+    );
+
+    const leaveHours = v.leave_hours || 0;
+
+    return (
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          // Absolute overlay: revealing the controls must not change row height,
+          // otherwise the whole grid jumps on every hover.
+          position: 'absolute',
+          left: 0,
+          ...(flipUp ? { bottom: '100%' } : { top: '100%' }),
+          zIndex: 30,
+          width: '96px',
+          padding: '3px',
+          background: 'white',
+          border: '1px solid #6c757d',
+          borderRadius: '3px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2px'
+        }}
+      >
+        <div style={{
+          fontSize: '8px',
+          textAlign: 'center',
+          color: '#212529',
+          borderBottom: '1px solid #dee2e6',
+          paddingBottom: '2px',
+          marginBottom: '1px'
+        }}>
+          M {v.effective_minutes} / std {v.standard_time} &middot; OT {v.overtime}
+        </div>
+        <div style={{ display: 'flex', gap: '1px', justifyContent: 'center' }}>
+          {stepBtn('-OT', '#0d6efd', `Kurangi overtime ${INLINE_STEP} menit`, () =>
+            applyInlineChange(mekanik, date, v, (b) => ({ overtime: Math.max(0, b.overtime - INLINE_STEP) })))}
+          {stepBtn('+OT', '#0d6efd', `Tambah overtime ${INLINE_STEP} menit`, () =>
+            applyInlineChange(mekanik, date, v, (b) => ({ overtime: b.overtime + INLINE_STEP })))}
+        </div>
+        <div style={{ display: 'flex', gap: '1px', justifyContent: 'center' }}>
+          {stepBtn('-M', '#198754', `Kurangi menit efektif ${INLINE_STEP}`, () =>
+            applyInlineChange(mekanik, date, v, (b) => ({ effective_minutes: Math.max(0, b.effective_minutes - INLINE_STEP) })))}
+          {stepBtn('+M', '#198754', `Tambah menit efektif ${INLINE_STEP}`, () =>
+            applyInlineChange(mekanik, date, v, (b) => ({ effective_minutes: b.effective_minutes + INLINE_STEP })))}
+        </div>
+        <select
+          value={v.absence_type || ''}
+          title="Tipe absence"
+          style={{ fontSize: '8px', padding: '0', width: '100%' }}
+          onChange={(e) => applyInlineAbsence(mekanik, date, v, e.target.value as AbsenceType | '')}
+        >
+          {ABSENCE_OPTIONS.map(o => (
+            <option key={o.value || 'none'} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        {v.absence_type === 'ijin_sebagian' && (
+          <div style={{ display: 'flex', gap: '1px', justifyContent: 'center', alignItems: 'center' }}>
+            {stepBtn('-h', '#6f42c1', `Kurangi jam ijin ${INLINE_LEAVE_STEP} jam`, () =>
+              applyInlineChange(mekanik, date, v, (b) => ({ leave_hours: Math.max(0, (b.leave_hours || 0) - INLINE_LEAVE_STEP) })))}
+            <span style={{ fontSize: '8px' }}>{leaveHours}h</span>
+            {stepBtn('+h', '#6f42c1', `Tambah jam ijin ${INLINE_LEAVE_STEP} jam (maks ${MAX_LEAVE_HOURS})`, () =>
+              applyInlineChange(mekanik, date, v, (b) => ({ leave_hours: Math.min(MAX_LEAVE_HOURS, (b.leave_hours || 0) + INLINE_LEAVE_STEP) })))}
+          </div>
+        )}
+        {stepBtn('reset', '#6c757d', 'Reset ke standard_time (hapus overtime & absence)', () =>
+          applyInlineReset(mekanik, date, v))}
+      </div>
+    );
+  };
+
   const handleSaveEdit = async () => {
-    if (!editEntry) return;
+    if (!editEntry) {
+      console.error('No edit entry found');
+      return;
+    }
 
     try {
       const sheetId = editEntry.sheet_id;
@@ -219,43 +503,42 @@ const WorkTimeSheet = () => {
         return;
       }
 
+      const { effective_minutes, overtime, absence_type, leave_hours } = editEntry.entry;
+
+      // Backend's total_time includes overtime; recombine before sending.
+      const payload = {
+        date: editEntry.date,
+        total_time: effective_minutes + overtime,
+        overtime,
+        absence_type: absence_type ?? null,
+        leave_hours: leave_hours || 0
+      };
+
       const url = `/api/worktime/${sheetId}/day/${editEntry.date}`;
-      console.log('Saving to URL:', url);
-      console.log('Data:', editEntry);
-      
+      console.log('PUT', url, payload);
+
       const response = await fetch(url, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify({
-          date: editEntry.date,
-          start_time: editEntry.entry.start_time,
-          end_time: editEntry.entry.end_time,
-          break_start: editEntry.entry.break_start,
-          break_end: editEntry.entry.break_end,
-          effective_minutes: editEntry.entry.effective_minutes,
-          overtime: editEntry.entry.overtime,
-          absence_type: editEntry.entry.absence_type,
-          leave_hours: editEntry.entry.leave_hours
-        })
+        body: JSON.stringify(payload)
       });
 
       const result = await response.json();
-      console.log('Response:', result);
+      console.log('Response:', response.status, result);
 
       if (result.success) {
         setShowEditModal(false);
         setEditEntry(null);
-        // Don't reload data - user will refresh manually to avoid cache issues
         alert('Work time updated successfully! Please refresh the page (F5) to see the updated data.');
       } else {
         alert('Failed to update: ' + result.message);
       }
     } catch (error) {
       console.error('Failed to update work time:', error);
-      alert('Failed to update work time');
+      alert('Failed to update work time: ' + (error instanceof Error ? error.message : String(error)));
     }
   };
 
@@ -339,6 +622,18 @@ const WorkTimeSheet = () => {
               </div>
             </div>
           </div>
+          <div className="row g-3 mt-1">
+            <div className="col-12">
+              <div className="alert alert-secondary mb-0 py-1 px-2" style={{fontSize: '11px'}}>
+                <strong>Inline editing:</strong> hover sel hari untuk memunculkan kontrolnya —
+                {' '}<span style={{color: '#0d6efd', fontWeight: 'bold'}}>-OT/+OT</span> overtime,
+                {' '}<span style={{color: '#198754', fontWeight: 'bold'}}>-M/+M</span> menit efektif (langkah {INLINE_STEP}),
+                {' '}dropdown absence, <span style={{color: '#6f42c1', fontWeight: 'bold'}}>-h/+h</span> jam ijin untuk Ijin Sebagian,
+                {' '}dan <span style={{fontWeight: 'bold'}}>reset</span> untuk kembali ke standard_time.
+                Setiap perubahan langsung tersimpan. Klik selnya untuk editor lengkap.
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -362,11 +657,11 @@ const WorkTimeSheet = () => {
                     const dayOfWeek = getDay(day);
                     const isSunday = dayOfWeek === 0;
                     return (
-                      <th 
-                        key={day.getDate()} 
+                      <th
+                        key={day.getDate()}
                         colSpan={1}
                         style={{
-                          minWidth: '80px',
+                          minWidth: '92px',
                           background: isSunday ? '#d9534f' : '#4472C4'
                         }}
                       >
@@ -381,9 +676,17 @@ const WorkTimeSheet = () => {
                 </tr>
               </thead>
               <tbody>
-                {mekaniks.map((mekanik) => {
-                  // Find work time data by matching mekanik_id (personel_id)
-                  const mekanikData = workTimeData.find(w => w.mekanik_id === mekanik._id);
+                {mekaniks.map((mekanik, mekanikIndex) => {
+                  const sheetId = sheetIdFor(mekanik);
+                  // Join on sheet_id, NOT on mekanik._id. The grid rows come from the
+                  // `mekaniks` collection while sheet.personel_id references `users`,
+                  // so those _ids never match — matching on them left every row with
+                  // mekanikData undefined, silently rendering frontend defaults
+                  // instead of the stored data.
+                  const mekanikData = workTimeData.find(w => w.sheet_id === sheetId);
+                  // Rows in the lower half open their overlay upward so it isn't
+                  // clipped by the scrollable table container.
+                  const flipUp = mekanikIndex >= mekaniks.length / 2;
                   let totalMonthly = 0;
 
                   if (!mekanikData) {
@@ -402,44 +705,66 @@ const WorkTimeSheet = () => {
                         const entry = mekanikData?.daily_entries.find(e => e.date === date);
                         const workingHours = getWorkingHours(day);
 
-                        const effectiveMinutes = entry?.effective_minutes || workingHours.effective;
-                        const overtime = entry?.overtime || 0;
+                        // `??` not `||`: a day genuinely reduced to 0 must still render as 0.
+                        const effectiveMinutes = entry?.effective_minutes ?? workingHours.effective;
+                        const overtime = entry?.overtime ?? 0;
                         const absenceType = entry?.absence_type;
-                        const leaveHours = entry?.leave_hours || 0;
+                        const leaveHours = entry?.leave_hours ?? 0;
+                        // Compare against the backend's own baseline for this weekday; the
+                        // frontend's getWorkingHours() disagrees with it for Fri/Sat/Sun.
+                        const standardTime = entry?.standard_time ?? workingHours.effective;
 
-                        // Debug log for all entries
-                        if (mekanik.name === 'Ade Usman' && date === 4) {
-                          console.log('Ade Usman Day 4:', { entry, effectiveMinutes, overtime, absenceType, leaveHours });
-                        }
+                        // One resolved snapshot of this cell, shared by the modal opener and
+                        // the inline +/- controls so the two can never disagree.
+                        const cellEntry: DailyWorkTime = {
+                          date,
+                          start_time: entry?.start_time || workingHours.start,
+                          end_time: entry?.end_time || workingHours.end,
+                          break_start: entry?.break_start || workingHours.break_start,
+                          break_end: entry?.break_end || workingHours.break_end,
+                          effective_minutes: effectiveMinutes,
+                          standard_time: standardTime,
+                          overtime,
+                          absence_type: absenceType,
+                          leave_hours: leaveHours
+                        };
+                        const cellKey = `${mekanik._id}:${date}`;
+                        const status = sheetId ? cellStatus[`${sheetId}:${date}`] : undefined;
+                        const isHovered = hoveredCell === cellKey;
+
+                        const isFullDayAbsence = !!absenceType && FULL_DAY_ABSENCES.includes(absenceType);
 
                         // Calculate net effective minutes based on absence type
                         let netEffective = effectiveMinutes;
-                        if (absenceType === 'sakit' || absenceType === 'ijin' || absenceType === 'cuti' || absenceType === 'alpha') {
+                        if (isFullDayAbsence) {
                           netEffective = 0;
                         } else if (absenceType === 'ijin_sebagian') {
-                          netEffective = effectiveMinutes - (leaveHours * 60);
+                          netEffective = Math.max(0, effectiveMinutes - (leaveHours * 60));
                         }
-                        
-                        totalMonthly += netEffective + overtime;
+
+                        // Mirrors the backend total_monthly formula: total_time (= effective +
+                        // overtime) with absence adjustments. Overtime is already inside it.
+                        let contribution = effectiveMinutes + overtime;
+                        if (isFullDayAbsence) {
+                          contribution = 0;
+                        } else if (absenceType === 'ijin_sebagian' && leaveHours > 0) {
+                          contribution = Math.max(0, contribution - (leaveHours * 60));
+                        }
+                        totalMonthly += contribution;
 
                         if (isSunday) {
                           return (
-                            <td key={date} style={{background: overtime > 0 ? '#fff3cd' : '#f5f5f5', textAlign: 'center', cursor: 'pointer'}}
-                                onClick={() => handleEditClick(mekanik._id, mekanik.name, mekanik.machine_code || '', date, {
-                                  date,
-                                  start_time: entry?.start_time || workingHours.start,
-                                  end_time: entry?.end_time || workingHours.end,
-                                  break_start: entry?.break_start || workingHours.break_start,
-                                  break_end: entry?.break_end || workingHours.break_end,
-                                  effective_minutes: effectiveMinutes,
-                                  overtime,
-                                  absence_type: absenceType,
-                                  leave_hours: leaveHours
-                                })}>
+                            <td key={date}
+                                style={{background: overtime > 0 ? '#fff3cd' : '#f5f5f5', textAlign: 'center', cursor: 'pointer', verticalAlign: 'top', position: 'relative'}}
+                                onMouseEnter={() => setHoveredCell(cellKey)}
+                                onMouseLeave={() => setHoveredCell(prev => (prev === cellKey ? null : prev))}
+                                onClick={() => handleEditClick(mekanik._id, mekanik.name, mekanik.machine_code || '', date, cellEntry)}>
                               <small style={{color: '#999'}}>OFF</small>
                               {overtime > 0 && (
                                 <div><small style={{color: 'blue', fontWeight: 'bold'}}>+{overtime}</small></div>
                               )}
+                              {renderStatusBadge(status, isHovered)}
+                              {renderInlineControls(mekanik, date, cellKey, cellEntry, flipUp)}
                             </td>
                           );
                         }
@@ -460,21 +785,15 @@ const WorkTimeSheet = () => {
                           cellStyle = {...cellStyle, background: '#e2e3e5'};
                         }
 
+                        const displayedMinutes = absenceType === 'ijin_sebagian' ? netEffective : effectiveMinutes;
+
                         return (
                           <td
                             key={date}
-                            style={cellStyle}
-                            onClick={() => handleEditClick(mekanik._id, mekanik.name, mekanik.machine_code || '', date, {
-                              date,
-                              start_time: entry?.start_time || workingHours.start,
-                              end_time: entry?.end_time || workingHours.end,
-                              break_start: entry?.break_start || workingHours.break_start,
-                              break_end: entry?.break_end || workingHours.break_end,
-                              effective_minutes: effectiveMinutes,
-                              overtime,
-                              absence_type: absenceType,
-                              leave_hours: leaveHours
-                            })}
+                            style={{...cellStyle, verticalAlign: 'top', position: 'relative'}}
+                            onMouseEnter={() => setHoveredCell(cellKey)}
+                            onMouseLeave={() => setHoveredCell(prev => (prev === cellKey ? null : prev))}
+                            onClick={() => handleEditClick(mekanik._id, mekanik.name, mekanik.machine_code || '', date, cellEntry)}
                             title={absenceType ? `${absenceType}${leaveHours > 0 ? ` (${leaveHours}h)` : ''}` : `Click to edit - ${workingHours.start}-${workingHours.end}`}
                           >
                             {absenceType && absenceType !== 'ijin_sebagian' ? (
@@ -489,16 +808,34 @@ const WorkTimeSheet = () => {
                             ) : (
                               <>
                                 <div style={{fontWeight: 'bold'}}>
-                                  {absenceType === 'ijin_sebagian' ? netEffective : effectiveMinutes}
+                                  {displayedMinutes}
                                 </div>
+                                {/* Show effective minutes change indicator */}
+                                {(() => {
+                                  const diff = displayedMinutes - standardTime;
+                                  if (diff === 0) return null;
+                                  return (
+                                    <div>
+                                      <small style={{
+                                        color: diff > 0 ? 'green' : 'red',
+                                        fontWeight: 'bold',
+                                        fontSize: '9px'
+                                      }}>
+                                        {diff > 0 ? '+' : ''}{diff}
+                                      </small>
+                                    </div>
+                                  );
+                                })()}
                                 {overtime > 0 && (
-                                  <small style={{color: 'blue'}}>+{overtime}</small>
+                                  <div><small style={{color: 'blue', fontWeight: 'bold'}}>+{overtime}</small></div>
                                 )}
                                 {absenceType === 'ijin_sebagian' && leaveHours > 0 && (
                                   <div><small style={{color: 'green'}}>-{leaveHours}h</small></div>
                                 )}
                               </>
                             )}
+                            {renderStatusBadge(status, isHovered)}
+                            {renderInlineControls(mekanik, date, cellKey, cellEntry, flipUp)}
                           </td>
                         );
                       })}
@@ -586,27 +923,85 @@ const WorkTimeSheet = () => {
                   </div>
                   <div className="col-md-6">
                     <label className="form-label">Effective Minutes</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      value={editEntry.entry.effective_minutes}
-                      onChange={(e) => setEditEntry({
-                        ...editEntry,
-                        entry: {...editEntry.entry, effective_minutes: Number(e.target.value)}
-                      })}
-                    />
+                    <div className="input-group">
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary"
+                        onClick={() => adjustEntryBy('effective_minutes', -10)}
+                      >
+                        -10
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary"
+                        onClick={() => adjustEntryBy('effective_minutes', -1)}
+                      >
+                        -1
+                      </button>
+                      <input
+                        type="number"
+                        className="form-control"
+                        min="0"
+                        step="1"
+                        value={editEntry.entry.effective_minutes}
+                        onChange={(e) => adjustEntry({ effective_minutes: Math.max(0, Number(e.target.value) || 0) })}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary"
+                        onClick={() => adjustEntryBy('effective_minutes', 1)}
+                      >
+                        +1
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary"
+                        onClick={() => adjustEntryBy('effective_minutes', 10)}
+                      >
+                        +10
+                      </button>
+                    </div>
                   </div>
                   <div className="col-md-6">
                     <label className="form-label">Overtime (minutes)</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      value={editEntry.entry.overtime}
-                      onChange={(e) => setEditEntry({
-                        ...editEntry,
-                        entry: {...editEntry.entry, overtime: Number(e.target.value)}
-                      })}
-                    />
+                    <div className="input-group">
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary"
+                        onClick={() => adjustEntryBy('overtime', -10)}
+                      >
+                        -10
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary"
+                        onClick={() => adjustEntryBy('overtime', -1)}
+                      >
+                        -1
+                      </button>
+                      <input
+                        type="number"
+                        className="form-control"
+                        min="0"
+                        step="1"
+                        value={editEntry.entry.overtime}
+                        onChange={(e) => adjustEntry({ overtime: Math.max(0, Number(e.target.value) || 0) })}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary"
+                        onClick={() => adjustEntryBy('overtime', 1)}
+                      >
+                        +1
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary"
+                        onClick={() => adjustEntryBy('overtime', 10)}
+                      >
+                        +10
+                      </button>
+                    </div>
                   </div>
                   <div className="col-md-6">
                     <label className="form-label">Absence Type</label>
