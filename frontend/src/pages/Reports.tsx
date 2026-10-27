@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { oheService } from '../services/oheService';
-import { authService } from '../services/authService';
 import { OHEInput } from '../types';
 import { format } from 'date-fns';
 
@@ -10,11 +9,9 @@ const Reports = () => {
   const [selectedMonth, setSelectedMonth] = useState<string>('2026-01');
   const [showEditModal, setShowEditModal] = useState(false);
   const [editItem, setEditItem] = useState<OHEInput | null>(null);
-  const [activities, setActivities] = useState<any[]>([]);
 
   useEffect(() => {
     loadData();
-    loadActivities();
   }, [selectedMonth]);
 
   // Reset dropdown when modal opens
@@ -39,37 +36,6 @@ const Reports = () => {
       console.error('Failed to load data:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadActivities = async () => {
-    try {
-      // Load activities from ValueTimeList, DirectList, IndirectList, LossTimeList
-      const [valueTimes, directs, indirects, lossTimes] = await Promise.all([
-        fetch('/api/valuetimes', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        }).then(res => res.json()),
-        fetch('/api/directs', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        }).then(res => res.json()),
-        fetch('/api/indirects', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        }).then(res => res.json()),
-        fetch('/api/losstimes', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        }).then(res => res.json())
-      ]);
-
-      const allActivities = [
-        ...(valueTimes.data || []).map((a: any) => ({ ...a, category: 'VALUE TIME' })),
-        ...(directs.data || []).map((a: any) => ({ ...a, category: 'DIRECT' })),
-        ...(indirects.data || []).map((a: any) => ({ ...a, category: 'INDIRECT' })),
-        ...(lossTimes.data || []).map((a: any) => ({ ...a, category: 'LOSS' }))
-      ];
-
-      setActivities(allActivities);
-    } catch (error) {
-      console.error('Failed to load activities:', error);
     }
   };
 
@@ -312,7 +278,6 @@ const Reports = () => {
                   <td colSpan={67} style={{fontWeight: 'bold'}}>Value Time (Corrective & Preventive)</td>
                 </tr>
                 {groupedValueTime.map((item, idx) => {
-                  const daysInMonth = Object.keys(item.days).map(d => parseInt(d)).sort((a, b) => a - b);
                   return (
                     <tr key={`value-${idx}`}>
                       <td>{idx + 1}</td>
@@ -349,7 +314,6 @@ const Reports = () => {
                   <td colSpan={67} style={{fontWeight: 'bold'}}>Indirect Time</td>
                 </tr>
                 {groupedIndirect.map((item, idx) => {
-                  const daysInMonth = Object.keys(item.days).map(d => parseInt(d)).sort((a, b) => a - b);
                   return (
                     <tr key={`indirect-${idx}`}>
                       <td>{idx + 1}</td>
@@ -386,7 +350,6 @@ const Reports = () => {
                   <td colSpan={67} style={{fontWeight: 'bold'}}>Loss Time</td>
                 </tr>
                 {groupedLoss.map((item, idx) => {
-                  const daysInMonth = Object.keys(item.days).map(d => parseInt(d)).sort((a, b) => a - b);
                   return (
                     <tr key={`loss-${idx}`}>
                       <td>{idx + 1}</td>

@@ -4,6 +4,8 @@ import { OHEInput, OHEInputCreate } from '../types';
 export const oheService = {
   getInputs: async (params?: {
     date?: string;
+    // Filter by calendar month, format 'YYYY-MM'.
+    month?: string;
     shift?: string;
     mekanik?: string;
     category?: string;
