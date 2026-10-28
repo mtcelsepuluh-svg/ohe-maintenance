@@ -241,6 +241,24 @@ const WorkTimeSheet = () => {
     }
   };
 
+  // Mirrors the backend total_monthly formula: total_time (= effective + overtime)
+  // with absence adjustments — full-day absences count 0, ijin_sebagian deducts
+  // leave_hours. Shared by the row Total and the per-date footer so they agree.
+  const getCellContribution = (entry: DailyWorkTime | undefined, day: Date) => {
+    const effectiveMinutes = entry?.effective_minutes ?? getWorkingHours(day).effective;
+    const overtime = entry?.overtime ?? 0;
+    const absenceType = entry?.absence_type;
+    const leaveHours = entry?.leave_hours ?? 0;
+
+    let contribution = effectiveMinutes + overtime;
+    if (absenceType && FULL_DAY_ABSENCES.includes(absenceType)) {
+      contribution = 0;
+    } else if (absenceType === 'ijin_sebagian' && leaveHours > 0) {
+      contribution = Math.max(0, contribution - (leaveHours * 60));
+    }
+    return contribution;
+  };
+
   const handleEditClick = (mekanik_id: string, mekanik_name: string, machine_code: string, date: number, entry: DailyWorkTime) => {
     // Normalize machine_code by removing dashes
     const normalizedCode = machine_code.replace(/-/g, '').toUpperCase();
@@ -559,6 +577,19 @@ const WorkTimeSheet = () => {
 
   const days = getDaysInMonth();
 
+  // Per-date column sums across all mekaniks, plus the month's grand total.
+  const dailyTotals = days.map(day => {
+    const date = day.getDate();
+    let sum = 0;
+    for (const mekanik of mekaniks) {
+      const sheetId = sheetIdFor(mekanik);
+      const sheet = sheetId ? workTimeData.find(w => w.sheet_id === sheetId) : undefined;
+      sum += getCellContribution(sheet?.daily_entries.find(e => e.date === date), day);
+    }
+    return sum;
+  });
+  const grandTotal = dailyTotals.reduce((sum, total) => sum + total, 0);
+
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
@@ -742,14 +773,9 @@ const WorkTimeSheet = () => {
                           netEffective = Math.max(0, effectiveMinutes - (leaveHours * 60));
                         }
 
-                        // Mirrors the backend total_monthly formula: total_time (= effective +
-                        // overtime) with absence adjustments. Overtime is already inside it.
-                        let contribution = effectiveMinutes + overtime;
-                        if (isFullDayAbsence) {
-                          contribution = 0;
-                        } else if (absenceType === 'ijin_sebagian' && leaveHours > 0) {
-                          contribution = Math.max(0, contribution - (leaveHours * 60));
-                        }
+                        // Same formula as the per-date footer totals, so the row Total,
+                        // the column totals and the grand total always agree.
+                        const contribution = getCellContribution(entry, day);
                         totalMonthly += contribution;
 
                         if (isSunday) {
@@ -848,6 +874,34 @@ const WorkTimeSheet = () => {
                   );
                 })}
               </tbody>
+              <tfoot>
+                <tr>
+                  <td style={{position: 'sticky', left: 0, bottom: 0, background: '#4472C4', color: 'white', zIndex: 3, fontWeight: 'bold'}}>
+                    Total per Tanggal
+                  </td>
+                  {days.map((day, dayIndex) => (
+                    <td
+                      key={day.getDate()}
+                      style={{
+                        position: 'sticky',
+                        bottom: 0,
+                        background: getDay(day) === 0 ? '#d9534f' : '#4472C4',
+                        color: 'white',
+                        textAlign: 'center',
+                        fontWeight: 'bold',
+                        zIndex: 2
+                      }}
+                    >
+                      {dailyTotals[dayIndex]}
+                    </td>
+                  ))}
+                  <td style={{position: 'sticky', bottom: 0, background: '#4472C4', color: 'white', zIndex: 2, fontWeight: 'bold', textAlign: 'right', paddingRight: '5px'}}>
+                    {grandTotal}
+                    <br/>
+                    <small>({Math.floor(grandTotal / 60)}h {grandTotal % 60}m)</small>
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
 
